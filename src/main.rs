@@ -1,18 +1,15 @@
+pub mod ast;
+pub mod environment;
 pub mod lexer;
 pub mod operator;
-pub mod token;
-pub mod ast;
-pub mod value;
-pub mod environment;
 pub mod parser;
+pub mod token;
+pub mod value;
 
 use std::io::{self, BufRead};
 
-use environment::Environment;
 use lexer::Lexer;
 use parser::Parser;
-
-use crate::ast::Evaluate;
 
 // fn reader_chars<R: BufRead>(reader: R) -> impl Iterator<Item = char> {
 //     reader.lines().flat_map(|l| l).flat_map(|s| s.chars())
@@ -35,13 +32,13 @@ fn main() {
         //
         let mut parser = Parser::new(lexer);
         let expr = parser.expression();
+        println!("{:?}", expr);
 
-        if let Ok(expr) = expr {
-            let env = Environment{};
-            let val = expr.evaluate(&env).unwrap();
-            println!("{:?}", val);
-        }
-
+        // if let Ok(expr) = expr {
+        //     let env = Environment{};
+        //     let val = expr.evaluate(&env).unwrap();
+        //     println!("{:?}", val);
+        // }
 
         buf.clear();
     }

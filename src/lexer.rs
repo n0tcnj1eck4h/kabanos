@@ -33,15 +33,10 @@ impl<T: Iterator<Item = char>> Lexer<T> {
         false
     }
 
-    fn advance_if<F>(&mut self, f: F) -> bool
-    where
-        F: Fn(char) -> bool,
-    {
-        if let Some(ch) = self.ch {
-            if f(ch) {
-                self.advance();
-                return true;
-            }
+    fn accept(&mut self, c: char) -> bool {
+        if Some(c) == self.ch {
+            self.advance();
+            return true;
         }
 
         false
@@ -53,7 +48,9 @@ impl<T: Iterator<Item = char>> Lexer<T> {
     }
 
     pub fn get_token(&mut self) -> Option<Token> {
-        while self.advance_if(|c| c.is_whitespace()) {}
+        while self.check(|c| c.is_whitespace()) {
+            self.advance();
+        }
 
         if self.check(|c| c == '#') {
             while self.check(|c| c != '\n') {
@@ -90,41 +87,41 @@ impl<T: Iterator<Item = char>> Lexer<T> {
         if let Some(ch) = self.ch {
             self.advance();
             if let Some(op) = match ch {
-                '=' => Some(if self.advance_if(|c| c == '=') {
+                '=' => Some(if self.accept('=') {
                     Operator::Equal
                 } else {
                     Operator::Assign
                 }),
-                '*' => Some(if self.advance_if(|c| c == '*') {
+                '*' => Some(if self.accept('*') {
                     Operator::Power
                 } else {
                     Operator::Multiply
                 }),
-                '<' => Some(if self.advance_if(|c| c == '=') {
+                '<' => Some(if self.accept('=') {
                     Operator::LessOrEqual
-                } else if self.advance_if(|c| c == '<') {
+                } else if self.accept('<') {
                     Operator::BinaryLeft
                 } else {
                     Operator::Less
                 }),
-                '>' => Some(if self.advance_if(|c| c == '=') {
+                '>' => Some(if self.accept('=') {
                     Operator::GreaterOrEqual
-                } else if self.advance_if(|c| c == '>') {
+                } else if self.accept('>') {
                     Operator::BinaryRight
                 } else {
                     Operator::Greater
                 }),
-                '!' => Some(if self.advance_if(|c| c == '=') {
+                '!' => Some(if self.accept('=') {
                     Operator::NotEqual
                 } else {
                     Operator::LogicNot
                 }),
-                '&' => Some(if self.advance_if(|c| c == '&') {
+                '&' => Some(if self.accept('&') {
                     Operator::LogicAnd
                 } else {
                     Operator::BinaryAnd
                 }),
-                '|' => Some(if self.advance_if(|c| c == '|') {
+                '|' => Some(if self.accept('|') {
                     Operator::LogicOr
                 } else {
                     Operator::BinaryOr
