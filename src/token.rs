@@ -1,6 +1,6 @@
 use crate::operator::Operator;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Identifier(String),
     IntegerLiteral(u32),
@@ -9,7 +9,7 @@ pub enum Token {
     Atom(char),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Keyword {
     PRINT,
 }
