@@ -68,11 +68,24 @@ impl<T: Iterator<Item = char>> Parser<T> {
 
     pub fn expression(&mut self) -> Result<Box<ExpressionAST>, Error> {
         // println!("expression");
-        if self.accept(Token::Operator(Operator::Add))
+        let prefix = if self.accept(Token::Operator(Operator::BinaryNot))
             || self.accept(Token::Operator(Operator::Subtract))
-        {}
+        {
+            if let Some(Token::Operator(op)) = self.previous_token {
+                Some(op)
+            } else {
+                unreachable!()
+            }
+        } else {
+            None
+        };
 
-        let lhs = self.term()?;
+        let mut lhs = self.term()?;
+
+        if let Some(prefix) = prefix {
+            lhs = Box::new(ExpressionAST::UnaryOperation(prefix, lhs))
+        }
+
         while self.accept(Token::Operator(Operator::Add))
             || self.accept(Token::Operator(Operator::Subtract))
         {

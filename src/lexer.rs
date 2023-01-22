@@ -130,7 +130,7 @@ impl<T: Iterator<Item = char>> Lexer<T> {
                 '-' => Some(Operator::Subtract),
                 '/' => Some(Operator::Divide),
                 '^' => Some(Operator::BinaryXor),
-                '~' => Some(Operator::BinaryXor),
+                '~' => Some(Operator::BinaryNot),
                 '%' => Some(Operator::Modulo),
                 _ => None,
             } {
