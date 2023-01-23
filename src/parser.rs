@@ -1,9 +1,12 @@
-use crate::{ast::ExpressionAST, lexer::Lexer, operator::Operator, token::Token, value::Value};
+use crate::{
+    ast::{expression::ExpressionAST, statement::StatementAST}, lexer::Lexer, operator::Operator, token::{Token, Keyword}, value::Value,
+};
 
 #[derive(Debug)]
 pub enum Error {
     UnexpectedTokenError(Option<Token>, Token),
     ExpressionExpectedError(Option<Token>),
+    StatementExpectedError(Option<Token>),
 }
 
 pub struct Parser<T: Iterator<Item = char>> {
@@ -48,6 +51,25 @@ impl<T: Iterator<Item = char>> Parser<T> {
         }
     }
 
+    pub fn statement(&mut self) -> Result<Box<StatementAST>, Error> {
+        if let Some(Token::Keyword(keyword)) = &self.current_token {
+            match keyword {
+                Keyword::PRINT => self.print()
+            }
+        }
+        else {
+            Err(Error::StatementExpectedError(self.current_token.to_owned()))
+        }
+    }
+
+    fn print(&mut self) -> Result<Box<StatementAST>, Error> {
+        self.advance();
+        let expr = self.expression()?;
+        self.expect(Token::Atom(';'))?;
+        
+        Ok(Box::new(StatementAST::Print(expr)))
+    }
+
     fn primary(&mut self) -> Result<Box<ExpressionAST>, Error> {
         // println!("primary");
         match self.current_token {
@@ -73,7 +95,10 @@ impl<T: Iterator<Item = char>> Parser<T> {
 
     fn unary(&mut self, operator: Operator) -> Result<Box<ExpressionAST>, Error> {
         self.advance();
-        Ok(Box::new(ExpressionAST::UnaryOperation(operator, self.primary()?)))
+        Ok(Box::new(ExpressionAST::UnaryOperation(
+            operator,
+            self.primary()?,
+        )))
     }
 
     pub fn expression(&mut self) -> Result<Box<ExpressionAST>, Error> {

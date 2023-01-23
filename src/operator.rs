@@ -54,7 +54,6 @@ impl Operator {
            Operator::Assign         => 5,
            Operator::BinaryNot      => -1,
            Operator::LogicNot       => -1,
-
         }
     }
 }
