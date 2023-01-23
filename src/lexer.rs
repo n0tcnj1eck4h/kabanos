@@ -74,10 +74,10 @@ impl<T: Iterator<Item = char>> Lexer<T> {
         }
 
         if self.check(|c| c.is_numeric()) {
-            let mut n = 0u32;
+            let mut n = 0i32;
             while self.check(|c| c.is_numeric()) {
                 n *= 10;
-                n += self.ch.unwrap().to_digit(10).unwrap();
+                n += self.ch.unwrap().to_digit(10).unwrap() as i32;
                 self.advance();
             }
 

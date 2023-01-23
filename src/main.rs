@@ -11,6 +11,8 @@ use std::io::{self, BufRead};
 use lexer::Lexer;
 use parser::Parser;
 
+use crate::{environment::Environment, ast::Evaluate};
+
 // fn reader_chars<R: BufRead>(reader: R) -> impl Iterator<Item = char> {
 //     reader.lines().flat_map(|l| l).flat_map(|s| s.chars())
 // }
@@ -26,19 +28,23 @@ fn main() {
         }
 
         let lexer = Lexer::new(buf.chars());
-        // for token in lexer {
-        //     println!("{:?}", token);
-        // }
-        //
         let mut parser = Parser::new(lexer);
         let expr = parser.expression();
         println!("{:?}", expr);
 
-        // if let Ok(expr) = expr {
-        //     let env = Environment{};
-        //     let val = expr.evaluate(&env).unwrap();
-        //     println!("{:?}", val);
-        // }
+        match expr {
+            Ok(expr) => {
+                let env = Environment {};
+                let val = expr.evaluate(&env);
+                match val {
+                    Ok(val) => println!("{:?}", val),
+                    Err(err)=> println!("Evaluation error: {:?}", err),
+                }
+            }
+            Err(err) => {
+                println!("Parsing error: {:?}", err);
+            }
+        }
 
         buf.clear();
     }

@@ -4,7 +4,6 @@ use crate::{ast::ExpressionAST, lexer::Lexer, operator::Operator, token::Token, 
 pub enum Error {
     UnexpectedTokenError(Option<Token>, Token),
     ExpressionExpectedError(Option<Token>),
-    OperatorExpectedError(Option<Token>),
 }
 
 pub struct Parser<T: Iterator<Item = char>> {
@@ -41,7 +40,7 @@ impl<T: Iterator<Item = char>> Parser<T> {
     }
 
     fn accept(&mut self, token: Token) -> bool {
-        if self.current_token == Some(token.to_owned()) {
+        if self.current_token == Some(token) {
             self.advance();
             true
         } else {
@@ -53,6 +52,8 @@ impl<T: Iterator<Item = char>> Parser<T> {
         // println!("primary");
         match self.current_token {
             Some(Token::IntegerLiteral(integer)) => self.literal(integer),
+            Some(Token::Identifier(ref identifier)) => self.identifier(identifier.to_owned()),
+            Some(Token::Operator(op)) => self.unary(op),
             Some(Token::Atom('(')) => self.parenthesis_expression(),
             _ => Err(Error::ExpressionExpectedError(
                 self.current_token.to_owned(),
@@ -60,92 +61,47 @@ impl<T: Iterator<Item = char>> Parser<T> {
         }
     }
 
-    fn literal(&mut self, integer: u32) -> Result<Box<ExpressionAST>, Error> {
-        // println!("literal");
+    fn literal(&mut self, integer: i32) -> Result<Box<ExpressionAST>, Error> {
         self.advance();
         Ok(Box::new(ExpressionAST::Literal(Value::Integer(integer))))
     }
 
+    fn identifier(&mut self, identifier: String) -> Result<Box<ExpressionAST>, Error> {
+        self.advance();
+        Ok(Box::new(ExpressionAST::Identifier(identifier)))
+    }
+
+    fn unary(&mut self, operator: Operator) -> Result<Box<ExpressionAST>, Error> {
+        self.advance();
+        Ok(Box::new(ExpressionAST::UnaryOperation(operator, self.primary()?)))
+    }
+
     pub fn expression(&mut self) -> Result<Box<ExpressionAST>, Error> {
-        // println!("expression");
-        let prefix = if self.accept(Token::Operator(Operator::BinaryNot))
-            || self.accept(Token::Operator(Operator::Subtract))
-        {
-            if let Some(Token::Operator(op)) = self.previous_token {
-                Some(op)
-            } else {
-                unreachable!()
-            }
-        } else {
-            None
-        };
-
-        let mut lhs = self.term()?;
-
-        if let Some(prefix) = prefix {
-            lhs = Box::new(ExpressionAST::UnaryOperation(prefix, lhs))
-        }
-
-        while self.accept(Token::Operator(Operator::Add))
-            || self.accept(Token::Operator(Operator::Subtract))
-        {
-            if let Some(Token::Operator(op)) = self.previous_token {
-                let rhs = self.term()?;
-                return Ok(Box::new(ExpressionAST::BinaryOperation(lhs, op, rhs)));
-            } else {
-                unreachable!()
-            }
-        }
-
-        Ok(lhs)
-    }
-
-    pub fn term(&mut self) -> Result<Box<ExpressionAST>, Error> {
-        // println!("term");
-        let lhs = self.factor()?;
-        while self.accept(Token::Operator(Operator::Multiply))
-            || self.accept(Token::Operator(Operator::Divide))
-        {
-            if let Some(Token::Operator(op)) = self.previous_token {
-                let rhs = self.factor()?;
-                return Ok(Box::new(ExpressionAST::BinaryOperation(lhs, op, rhs)));
-            } else {
-                unreachable!()
-            }
-        }
-
-        Ok(lhs)
-    }
-
-    pub fn factor(&mut self) -> Result<Box<ExpressionAST>, Error> {
-        // println!("factor");
-        let lhs = self.exponent()?;
-        while self.accept(Token::Operator(Operator::Multiply))
-            || self.accept(Token::Operator(Operator::Divide))
-        {
-            if let Some(Token::Operator(op)) = self.previous_token {
-                let rhs = self.exponent()?;
-                return Ok(Box::new(ExpressionAST::BinaryOperation(lhs, op, rhs)));
-            } else {
-                unreachable!()
-            }
-        }
-
-        Ok(lhs)
-    }
-
-    pub fn exponent(&mut self) -> Result<Box<ExpressionAST>, Error> {
-        // println!("exponent");
         let lhs = self.primary()?;
-        while self.accept(Token::Operator(Operator::Power))
-            || self.accept(Token::Operator(Operator::Modulo))
-        {
-            if let Some(Token::Operator(op)) = self.previous_token {
-                let rhs = self.primary()?;
-                return Ok(Box::new(ExpressionAST::BinaryOperation(lhs, op, rhs)));
-            } else {
-                unreachable!()
+        self.expression_rhs(lhs, -1)
+    }
+
+    fn expression_rhs(
+        &mut self,
+        mut lhs: Box<ExpressionAST>,
+        expression_precedence: i32,
+    ) -> Result<Box<ExpressionAST>, Error> {
+        while let Some(Token::Operator(op)) = self.current_token {
+            let operator_percedence = op.get_precedence();
+            if operator_percedence < expression_precedence {
+                break;
             }
+
+            self.advance();
+            let mut rhs = self.primary()?;
+
+            if let Some(Token::Operator(next_op)) = self.current_token {
+                if operator_percedence < next_op.get_precedence() {
+                    rhs = self.expression_rhs(rhs, operator_percedence + 1)?;
+                }
+            }
+
+            lhs = Box::new(ExpressionAST::BinaryOperation(lhs, op, rhs))
         }
 
         Ok(lhs)

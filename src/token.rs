@@ -3,7 +3,7 @@ use crate::operator::Operator;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Identifier(String),
-    IntegerLiteral(u32),
+    IntegerLiteral(i32),
     Operator(Operator),
     Keyword(Keyword),
     Atom(char),

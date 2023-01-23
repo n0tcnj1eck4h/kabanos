@@ -1,4 +1,6 @@
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Value {
-    Integer(u32),
+    Integer(i32),
+    String(String),
+    Boolean(bool)
 }

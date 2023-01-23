@@ -28,32 +28,33 @@ pub enum Operator {
     LogicNot,
 }
 
-use Operator::*;
+#[rustfmt::skip]
 impl Operator {
     pub fn get_precedence(&self) -> i32 {
         match self {
-            BinaryNot => 250,
-            LogicNot => 250,
-            Power => 200,
-            Multiply => 100,
-            Divide => 100,
-            Modulo => 100,
-            Add => 80,
-            Subtract => 80,
-            BinaryRight => 60,
-            BinaryLeft => 60,
-            Less => 40,
-            LessOrEqual => 40,
-            Greater => 40,
-            GreaterOrEqual => 40,
-            Equal => 30,
-            NotEqual => 30,
-            BinaryAnd => 25,
-            BinaryXor => 24,
-            BinaryOr => 23,
-            LogicAnd => 15,
-            LogicOr => 10,
-            Assign => 5,
+           Operator::Power          => 200,
+           Operator::Multiply       => 100,
+           Operator::Divide         => 100,
+           Operator::Modulo         => 100,
+           Operator::Add            => 80,
+           Operator::Subtract       => 80,
+           Operator::BinaryRight    => 60,
+           Operator::BinaryLeft     => 60,
+           Operator::Less           => 40,
+           Operator::LessOrEqual    => 40,
+           Operator::Greater        => 40,
+           Operator::GreaterOrEqual => 40,
+           Operator::BinaryAnd      => 36,
+           Operator::BinaryXor      => 33,
+           Operator::BinaryOr       => 30,
+           Operator::Equal          => 20,
+           Operator::NotEqual       => 20,
+           Operator::LogicAnd       => 15,
+           Operator::LogicOr        => 10,
+           Operator::Assign         => 5,
+           Operator::BinaryNot      => -1,
+           Operator::LogicNot       => -1,
+
         }
     }
 }
