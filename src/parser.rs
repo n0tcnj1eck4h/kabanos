@@ -57,6 +57,9 @@ impl<T: Iterator<Item = char>> Parser<T> {
                 Keyword::PRINT => self.print()
             }
         }
+        else if self.current_token == Some(Token::Atom('{')) {
+            self.block()
+        }
         else {
             Err(Error::StatementExpectedError(self.current_token.to_owned()))
         }
@@ -68,6 +71,18 @@ impl<T: Iterator<Item = char>> Parser<T> {
         self.expect(Token::Atom(';'))?;
         
         Ok(Box::new(StatementAST::Print(expr)))
+    }
+
+    fn block(&mut self) -> Result<Box<StatementAST>, Error> {
+        self.advance();
+
+        let mut statements = Vec::new();
+        while self.current_token != Some(Token::Atom('}')) {
+            statements.push(self.statement()?)
+        }
+
+        self.advance();
+        Ok(Box::new(StatementAST::Block(statements)))
     }
 
     fn primary(&mut self) -> Result<Box<ExpressionAST>, Error> {

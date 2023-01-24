@@ -33,7 +33,7 @@ fn main() {
 
         let lexer = Lexer::new(buf.chars());
         let mut parser = Parser::new(lexer);
-        let mut stmt = parser.statement();
+        let stmt = parser.statement();
         println!("{:?}", stmt);
 
         match stmt {
@@ -57,12 +57,6 @@ fn main() {
         //     }
         // }
 
-        println!("The Fog is coming.");
-        println!("The Fog is coming.");
-        println!("The Fog is coming.");
-        println!("The Fog is coming.");
-        println!("The Fog is coming.");
-        println!("The Fog is coming.");
         buf.clear();
     }
 }
