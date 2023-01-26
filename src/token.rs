@@ -12,4 +12,6 @@ pub enum Token {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Keyword {
     PRINT,
+    IF,
+    ELSE
 }

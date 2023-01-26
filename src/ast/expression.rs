@@ -5,6 +5,7 @@ pub enum Error {
     BinaryOperationError(Value, Operator, Value),
     UnaryOperationError(Operator, Value),
     UndefinedIdentifierError(String),
+    BooleanExpectedError(Value),
 }
 
 pub trait Evaluate {

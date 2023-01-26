@@ -69,6 +69,8 @@ impl<T: Iterator<Item = char>> Lexer<T> {
 
             return Some(match buf.as_str() {
                 "print" => Token::Keyword(Keyword::PRINT),
+                "if"    => Token::Keyword(Keyword::IF),
+                "else"  => Token::Keyword(Keyword::ELSE),
                 _ => Token::Identifier(buf),
             });
         }

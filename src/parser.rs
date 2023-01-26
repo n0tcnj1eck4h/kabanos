@@ -1,5 +1,5 @@
 use crate::{
-    ast::{expression::ExpressionAST, statement::StatementAST}, lexer::Lexer, operator::Operator, token::{Token, Keyword}, value::Value,
+    ast::{expression::{ExpressionAST, Evaluate}, statement::StatementAST}, lexer::Lexer, operator::Operator, token::{Token, Keyword}, value::Value,
 };
 
 #[derive(Debug)]
@@ -54,7 +54,9 @@ impl<T: Iterator<Item = char>> Parser<T> {
     pub fn statement(&mut self) -> Result<Box<StatementAST>, Error> {
         if let Some(Token::Keyword(keyword)) = &self.current_token {
             match keyword {
-                Keyword::PRINT => self.print()
+                Keyword::PRINT => self.print(),
+                Keyword::IF => self.conditional(),
+                Keyword::ELSE => Err(Error::StatementExpectedError(self.current_token.to_owned()))
             }
         }
         else if self.current_token == Some(Token::Atom('{')) {
@@ -71,6 +73,21 @@ impl<T: Iterator<Item = char>> Parser<T> {
         self.expect(Token::Atom(';'))?;
         
         Ok(Box::new(StatementAST::Print(expr)))
+    }
+
+    fn conditional(&mut self) -> Result<Box<StatementAST>, Error> {
+        self.advance();
+        let expr = self.expression()?;
+        let stmt = self.statement()?;
+
+        let else_branch = if self.accept(Token::Keyword(Keyword::ELSE)) {
+            Some(self.statement()?)
+        }
+        else {
+            None
+        };
+        
+        Ok(Box::new(StatementAST::Conditional(expr, stmt, else_branch)))
     }
 
     fn block(&mut self) -> Result<Box<StatementAST>, Error> {
