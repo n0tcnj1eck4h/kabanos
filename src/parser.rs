@@ -1,16 +1,14 @@
 use crate::{
-    ast::{expression::Expression, statement::Statement, Definition, Program},
-    token::Operator,
-    token::{Keyword, Token},
+    ast::{Expression, FunctionDefinition, GlobalVariableDefintion, Parameter, Program, Statement},
+    token::{Keyword, Operator, Token},
 };
 
 #[derive(Debug)]
 pub enum ParsingError {
-    UnexpectedTokenError(Token),
+    UnexpectedTokenError(Option<Token>),
     ExpressionExpectedError(Option<Token>),
     StatementExpectedError(Option<Token>),
     DefinitionExpectedError(Option<Token>),
-    UnexpectedEOF,
 }
 
 pub struct Parser<L> {
@@ -33,7 +31,7 @@ where
     }
 
     fn advance(&mut self) {
-        self.previous_token = self.current_token.to_owned();
+        self.previous_token = self.current_token.take();
         self.current_token = self.lexer.next();
     }
 
@@ -41,10 +39,10 @@ where
         if self.current_token == Some(token) {
             self.advance();
             Ok(())
-        } else if let Some(ref token) = self.current_token {
-            Err(ParsingError::UnexpectedTokenError(token.clone()))
         } else {
-            Err(ParsingError::UnexpectedEOF)
+            Err(ParsingError::UnexpectedTokenError(
+                self.current_token.clone(),
+            ))
         }
     }
 
@@ -60,30 +58,90 @@ where
     pub fn program(&mut self) -> Result<Program, ParsingError> {
         let mut function_definitions = Vec::new();
         let mut imports = Vec::new();
+        let mut globals = Vec::new();
 
         while self.accept(Token::Keyword(Keyword::IMPORT)) {
             imports.push(self.import()?);
         }
 
-        while self.accept(Token::Keyword(Keyword::FUNCTION)) {
-            function_definitions.push(self.function_definition()?);
+        while let Some(ref token) = self.current_token {
+            match token {
+                Token::Keyword(Keyword::FUNCTION) => {
+                    function_definitions.push(self.function_definition()?)
+                }
+                Token::Keyword(Keyword::GLOBAL) => globals.push(self.global_var()?),
+                _ => return Err(ParsingError::UnexpectedTokenError(Some(token.clone()))),
+            }
         }
 
-        // TODO GLOBELS
-
-        if let Some(ref leftover_token) = self.current_token {
-            Err(ParsingError::UnexpectedTokenError(leftover_token.clone()))
-        } else {
-            Ok(Program {
-                imports,
-                function_definitions,
-            })
-        }
+        Ok(Program {
+            imports,
+            function_definitions,
+            globals,
+        })
     }
 
-    pub fn function_definition(&mut self) -> Result<Definition, ParsingError> {
+    pub fn parameter_list(&mut self) -> Result<Vec<Parameter>, ParsingError> {
         self.advance();
-        todo!()
+        let mut parameters = Vec::new();
+        loop {
+            match self.current_token {
+                Some(Token::Atom(')')) => {
+                    self.advance();
+                    break;
+                }
+                Some(Token::PrimitiveType(type_)) => {
+                    self.advance();
+                    if let Some(Token::Identifier(name)) = self.current_token.clone() {
+                        parameters.push(Parameter { type_, name })
+                    }
+                }
+                _ => {
+                    return Err(ParsingError::UnexpectedTokenError(
+                        self.current_token.clone(),
+                    ))
+                }
+            }
+
+            if self.current_token != Some(Token::Atom(',')) {
+                return Err(ParsingError::UnexpectedTokenError(
+                    self.current_token.clone(),
+                ));
+            }
+        }
+
+        Ok(parameters)
+    }
+
+    pub fn function_definition(&mut self) -> Result<FunctionDefinition, ParsingError> {
+        self.advance();
+        if let Some(Token::Identifier(function_name)) = self.current_token.clone() {
+            self.advance();
+            if self.current_token == Some(Token::Atom('(')) {
+                let parameters = self.parameter_list()?;
+                let return_type = match self.current_token {
+                    Some(Token::PrimitiveType(return_type)) => {
+                        self.advance();
+                        Some(return_type)
+                    }
+                    _ => None,
+                };
+
+                // todo uhh
+                let body = self.block()?;
+
+                return Ok(FunctionDefinition {
+                    name: function_name,
+                    body,
+                    parameters,
+                    return_type,
+                });
+            }
+        }
+
+        Err(ParsingError::UnexpectedTokenError(
+            self.current_token.clone(),
+        ))
     }
 
     pub fn import(&mut self) -> Result<String, ParsingError> {
@@ -95,6 +153,10 @@ where
     }
 
     pub fn local_var(&mut self) -> Result<Statement, ParsingError> {
+        todo!()
+    }
+
+    pub fn global_var(&mut self) -> Result<GlobalVariableDefintion, ParsingError> {
         todo!()
     }
 

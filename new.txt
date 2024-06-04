@@ -5,13 +5,18 @@ import module_name::symbol
 import module_name::symbol
 
 # Extern declaration
-extern cdecl i32 extern_function_name()
+extern cdecl i32 extern_function_name();
 
 # Global bariable 
-global u32 my_unsigned_global = 0; global u32 my_unsigned_global_without_a_value
+global u32 my_unsigned_global = 0;
+global u32 my_unsigned_global_without_a_value;
+
+struct MyType {
+  
+}
 
 # Function definiton
-fn main() -> {
+fn main() i32 {
   if 1 == 2 {
     # stuff
   } else {
@@ -23,9 +28,9 @@ fn main() -> {
 
   while exit {
     # stuff
-    local namber: i32 = extern_function_name()
+    local namber: i32 = extern_function_name();
     if namer == 1 {
-      exit = true
+      exit = true;
     }
   }
 }

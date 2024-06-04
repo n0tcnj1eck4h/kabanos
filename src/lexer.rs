@@ -1,4 +1,4 @@
-use crate::token::{Keyword, Operator, Token};
+use crate::token::{Keyword, Operator, Token, Type};
 
 pub struct Lexer<T> {
     stream: T,
@@ -63,12 +63,19 @@ where
             }
 
             return Some(match buf.as_str() {
-                "local" => Token::Keyword(Keyword::LOCAL),
-                "global" => Token::Keyword(Keyword::GLOBAL),
-                "extern" => Token::Keyword(Keyword::EXTERN),
                 "if" => Token::Keyword(Keyword::IF),
                 "else" => Token::Keyword(Keyword::ELSE),
                 "fn" => Token::Keyword(Keyword::FUNCTION),
+                "local" => Token::Keyword(Keyword::LOCAL),
+                "global" => Token::Keyword(Keyword::GLOBAL),
+                "extern" => Token::Keyword(Keyword::EXTERN),
+                "struct" => Token::Keyword(Keyword::STRUCT),
+                "i32" => Token::PrimitiveType(Type::I32),
+                "u32" => Token::PrimitiveType(Type::U32),
+                "i64" => Token::PrimitiveType(Type::I64),
+                "u64" => Token::PrimitiveType(Type::U64),
+                "f32" => Token::PrimitiveType(Type::F32),
+                "f64" => Token::PrimitiveType(Type::F64),
                 _ => Token::Identifier(buf),
             });
         }
