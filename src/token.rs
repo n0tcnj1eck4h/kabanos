@@ -1,17 +1,79 @@
-use crate::operator::Operator;
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Identifier(String),
-    IntegerLiteral(i32),
+    IntegerLiteral(i128),
+    FloatingPointLiteral(f64),
     Operator(Operator),
     Keyword(Keyword),
     Atom(char),
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Keyword {
-    PRINT,
     IF,
-    ELSE
+    ELSE,
+    IMPORT,
+    EXTERN,
+    LOCAL,
+    GLOBAL,
+    FUNCTION,
+    WHILE,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Operator {
+    Equal,
+    Assign,
+    //////
+    Less,
+    Greater,
+    LessOrEqual,
+    GreaterOrEqual,
+    NotEqual,
+    //////
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+    //////
+    BinaryAnd,
+    BinaryOr,
+    BinaryXor,
+    BinaryNot,
+    BinaryLeft,
+    BinaryRight,
+    //////
+    LogicAnd,
+    LogicOr,
+    LogicNot,
+}
+
+#[rustfmt::skip]
+impl Operator {
+    pub fn get_precedence(&self) -> i32 {
+        match self {
+           Operator::Multiply       => 100,
+           Operator::Divide         => 100,
+           Operator::Modulo         => 100,
+           Operator::Add            => 80,
+           Operator::Subtract       => 80,
+           Operator::BinaryRight    => 60,
+           Operator::BinaryLeft     => 60,
+           Operator::Less           => 40,
+           Operator::LessOrEqual    => 40,
+           Operator::Greater        => 40,
+           Operator::GreaterOrEqual => 40,
+           Operator::BinaryAnd      => 36,
+           Operator::BinaryXor      => 33,
+           Operator::BinaryOr       => 30,
+           Operator::Equal          => 20,
+           Operator::NotEqual       => 20,
+           Operator::LogicAnd       => 15,
+           Operator::LogicOr        => 10,
+           Operator::Assign         => 5,
+           Operator::BinaryNot      => -1,
+           Operator::LogicNot       => -1,
+        }
+    }
 }

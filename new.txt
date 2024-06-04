@@ -1,0 +1,32 @@
+# Imports
+import module_name::symbol
+import module_name::symbol
+import module_name::symbol
+import module_name::symbol
+
+# Extern declaration
+extern cdecl i32 extern_function_name()
+
+# Global bariable 
+global u32 my_unsigned_global = 0; global u32 my_unsigned_global_without_a_value
+
+# Function definiton
+fn main() -> {
+  if 1 == 2 {
+    # stuff
+  } else {
+    # stuff
+  }
+
+  local i32 namber = 0; 
+  local bool exit = false;
+
+  while exit {
+    # stuff
+    local namber: i32 = extern_function_name()
+    if namer == 1 {
+      exit = true
+    }
+  }
+}
+

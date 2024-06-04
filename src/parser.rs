@@ -1,23 +1,30 @@
 use crate::{
-    ast::{expression::{ExpressionAST, Evaluate}, statement::StatementAST}, lexer::Lexer, operator::Operator, token::{Token, Keyword}, value::Value,
+    ast::{expression::Expression, statement::Statement, Definition, Program},
+    token::Operator,
+    token::{Keyword, Token},
 };
 
 #[derive(Debug)]
-pub enum Error {
-    UnexpectedTokenError(Option<Token>, Token),
+pub enum ParsingError {
+    UnexpectedTokenError(Token),
     ExpressionExpectedError(Option<Token>),
     StatementExpectedError(Option<Token>),
+    DefinitionExpectedError(Option<Token>),
+    UnexpectedEOF,
 }
 
-pub struct Parser<T: Iterator<Item = char>> {
-    lexer: Lexer<T>,
+pub struct Parser<L> {
+    lexer: L,
     current_token: Option<Token>,
     previous_token: Option<Token>,
 }
 
-impl<T: Iterator<Item = char>> Parser<T> {
-    pub fn new(mut lexer: Lexer<T>) -> Self {
-        let token = lexer.get_token();
+impl<L> Parser<L>
+where
+    L: Iterator<Item = Token>,
+{
+    pub fn new(mut lexer: L) -> Self {
+        let token = lexer.next();
         Self {
             lexer,
             current_token: token,
@@ -27,18 +34,17 @@ impl<T: Iterator<Item = char>> Parser<T> {
 
     fn advance(&mut self) {
         self.previous_token = self.current_token.to_owned();
-        self.current_token = self.lexer.get_token();
+        self.current_token = self.lexer.next();
     }
 
-    fn expect(&mut self, token: Token) -> Result<(), Error> {
-        if self.current_token == Some(token.to_owned()) {
+    fn expect(&mut self, token: Token) -> Result<(), ParsingError> {
+        if self.current_token == Some(token) {
             self.advance();
             Ok(())
+        } else if let Some(ref token) = self.current_token {
+            Err(ParsingError::UnexpectedTokenError(token.clone()))
         } else {
-            Err(Error::UnexpectedTokenError(
-                self.current_token.to_owned(),
-                token,
-            ))
+            Err(ParsingError::UnexpectedEOF)
         }
     }
 
@@ -51,46 +57,81 @@ impl<T: Iterator<Item = char>> Parser<T> {
         }
     }
 
-    pub fn statement(&mut self) -> Result<Box<StatementAST>, Error> {
-        if let Some(Token::Keyword(keyword)) = &self.current_token {
-            match keyword {
-                Keyword::PRINT => self.print(),
-                Keyword::IF => self.conditional(),
-                Keyword::ELSE => Err(Error::StatementExpectedError(self.current_token.to_owned()))
-            }
+    pub fn program(&mut self) -> Result<Program, ParsingError> {
+        let mut function_definitions = Vec::new();
+        let mut imports = Vec::new();
+
+        while self.accept(Token::Keyword(Keyword::IMPORT)) {
+            imports.push(self.import()?);
         }
-        else if self.current_token == Some(Token::Atom('{')) {
-            self.block()
+
+        while self.accept(Token::Keyword(Keyword::FUNCTION)) {
+            function_definitions.push(self.function_definition()?);
         }
-        else {
-            Err(Error::StatementExpectedError(self.current_token.to_owned()))
+
+        // TODO GLOBELS
+
+        if let Some(ref leftover_token) = self.current_token {
+            Err(ParsingError::UnexpectedTokenError(leftover_token.clone()))
+        } else {
+            Ok(Program {
+                imports,
+                function_definitions,
+            })
         }
     }
 
-    fn print(&mut self) -> Result<Box<StatementAST>, Error> {
+    pub fn function_definition(&mut self) -> Result<Definition, ParsingError> {
         self.advance();
-        let expr = self.expression()?;
-        self.expect(Token::Atom(';'))?;
-        
-        Ok(Box::new(StatementAST::Print(expr)))
+        todo!()
     }
 
-    fn conditional(&mut self) -> Result<Box<StatementAST>, Error> {
+    pub fn import(&mut self) -> Result<String, ParsingError> {
+        todo!()
+    }
+
+    pub fn while_loop(&mut self) -> Result<Statement, ParsingError> {
+        todo!()
+    }
+
+    pub fn local_var(&mut self) -> Result<Statement, ParsingError> {
+        todo!()
+    }
+
+    pub fn statement(&mut self) -> Result<Statement, ParsingError> {
+        if let Some(Token::Keyword(keyword)) = self.current_token {
+            match keyword {
+                Keyword::IF => self.conditional(),
+                Keyword::WHILE => self.while_loop(),
+                Keyword::LOCAL => self.local_var(),
+                _ => Err(ParsingError::StatementExpectedError(
+                    self.current_token.to_owned(),
+                )),
+            }
+        } else if self.current_token == Some(Token::Atom('{')) {
+            self.block()
+        } else {
+            Err(ParsingError::StatementExpectedError(
+                self.current_token.to_owned(),
+            ))
+        }
+    }
+
+    fn conditional(&mut self) -> Result<Statement, ParsingError> {
         self.advance();
         let expr = self.expression()?;
         let stmt = self.statement()?;
 
         let else_branch = if self.accept(Token::Keyword(Keyword::ELSE)) {
-            Some(self.statement()?)
-        }
-        else {
+            Some(Box::new(self.statement()?))
+        } else {
             None
         };
-        
-        Ok(Box::new(StatementAST::Conditional(expr, stmt, else_branch)))
+
+        Ok(Statement::Conditional(expr, Box::new(stmt), else_branch))
     }
 
-    fn block(&mut self) -> Result<Box<StatementAST>, Error> {
+    fn block(&mut self) -> Result<Statement, ParsingError> {
         self.advance();
 
         let mut statements = Vec::new();
@@ -99,50 +140,50 @@ impl<T: Iterator<Item = char>> Parser<T> {
         }
 
         self.advance();
-        Ok(Box::new(StatementAST::Block(statements)))
+        Ok(Statement::Block(statements))
     }
 
-    fn primary(&mut self) -> Result<Box<ExpressionAST>, Error> {
+    fn primary(&mut self) -> Result<Expression, ParsingError> {
         // println!("primary");
         match self.current_token {
             Some(Token::IntegerLiteral(integer)) => self.literal(integer),
             Some(Token::Identifier(ref identifier)) => self.identifier(identifier.to_owned()),
             Some(Token::Operator(op)) => self.unary(op),
             Some(Token::Atom('(')) => self.parenthesis_expression(),
-            _ => Err(Error::ExpressionExpectedError(
+            _ => Err(ParsingError::ExpressionExpectedError(
                 self.current_token.to_owned(),
             )),
         }
     }
 
-    fn literal(&mut self, integer: i32) -> Result<Box<ExpressionAST>, Error> {
+    fn literal(&mut self, integer: i128) -> Result<Expression, ParsingError> {
         self.advance();
-        Ok(Box::new(ExpressionAST::Literal(Value::Integer(integer))))
+        Ok(Expression::IntegerLiteral(integer))
     }
 
-    fn identifier(&mut self, identifier: String) -> Result<Box<ExpressionAST>, Error> {
+    fn identifier(&mut self, identifier: String) -> Result<Expression, ParsingError> {
         self.advance();
-        Ok(Box::new(ExpressionAST::Identifier(identifier)))
+        Ok(Expression::Identifier(identifier))
     }
 
-    fn unary(&mut self, operator: Operator) -> Result<Box<ExpressionAST>, Error> {
+    fn unary(&mut self, operator: Operator) -> Result<Expression, ParsingError> {
         self.advance();
-        Ok(Box::new(ExpressionAST::UnaryOperation(
+        Ok(Expression::UnaryOperation(
             operator,
-            self.primary()?,
-        )))
+            Box::new(self.primary()?),
+        ))
     }
 
-    pub fn expression(&mut self) -> Result<Box<ExpressionAST>, Error> {
+    pub fn expression(&mut self) -> Result<Expression, ParsingError> {
         let lhs = self.primary()?;
         self.expression_rhs(lhs, -1)
     }
 
     fn expression_rhs(
         &mut self,
-        mut lhs: Box<ExpressionAST>,
+        mut lhs: Expression,
         expression_precedence: i32,
-    ) -> Result<Box<ExpressionAST>, Error> {
+    ) -> Result<Expression, ParsingError> {
         while let Some(Token::Operator(op)) = self.current_token {
             let operator_percedence = op.get_precedence();
             if operator_percedence < expression_precedence {
@@ -158,14 +199,13 @@ impl<T: Iterator<Item = char>> Parser<T> {
                 }
             }
 
-            lhs = Box::new(ExpressionAST::BinaryOperation(lhs, op, rhs))
+            lhs = Expression::BinaryOperation(Box::new(lhs), op, Box::new(rhs))
         }
 
         Ok(lhs)
     }
 
-    fn parenthesis_expression(&mut self) -> Result<Box<ExpressionAST>, Error> {
-        // println!("parenthesis");
+    fn parenthesis_expression(&mut self) -> Result<Expression, ParsingError> {
         self.expect(Token::Atom('('))?;
         let expr = self.expression();
         self.expect(Token::Atom(')'))?;

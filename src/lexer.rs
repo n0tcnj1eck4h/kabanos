@@ -1,20 +1,19 @@
-use crate::operator::Operator;
-use crate::token::{Keyword, Token};
+use crate::token::{Keyword, Operator, Token};
 
-pub struct Lexer<T: Iterator<Item = char>> {
+pub struct Lexer<T> {
     stream: T,
     ch: Option<char>,
 }
 
-impl<T: Iterator<Item = char>> Iterator for Lexer<T> {
-    type Item = Token;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.get_token()
+impl<T> Lexer<T>
+where
+    T: Iterator<Item = char>,
+{
+    pub fn new(mut stream: T) -> Self {
+        let ch = stream.next();
+        Lexer { stream, ch }
     }
-}
 
-impl<T: Iterator<Item = char>> Lexer<T> {
     fn advance(&mut self) -> bool {
         self.ch = self.stream.next();
         self.ch.is_some()
@@ -22,33 +21,29 @@ impl<T: Iterator<Item = char>> Lexer<T> {
 
     fn check<F>(&mut self, f: F) -> bool
     where
-        F: Fn(char) -> bool,
+        F: FnOnce(char) -> bool,
     {
-        if let Some(ch) = self.ch {
-            if f(ch) {
-                return true;
-            }
-        }
-
-        false
+        self.ch.map_or(false, f)
     }
 
     fn accept(&mut self, c: char) -> bool {
-        if Some(c) == self.ch {
+        if self.ch == Some(c) {
             self.advance();
-            return true;
+            true
+        } else {
+            false
         }
-
-        false
     }
+}
 
-    pub fn new(mut stream: T) -> Self {
-        let ch = stream.next();
-        Lexer { stream, ch }
-    }
+impl<T> Iterator for Lexer<T>
+where
+    T: Iterator<Item = char>,
+{
+    type Item = Token;
 
-    pub fn get_token(&mut self) -> Option<Token> {
-        while self.check(|c| c.is_whitespace()) {
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.check(char::is_whitespace) {
             self.advance();
         }
 
@@ -57,10 +52,10 @@ impl<T: Iterator<Item = char>> Lexer<T> {
                 self.advance();
             }
 
-            return self.get_token();
+            return self.next();
         }
 
-        if self.check(|c| c.is_alphabetic()) {
+        if self.check(char::is_alphabetic) {
             let mut buf = String::new();
             while self.check(|c| c.is_alphanumeric() || c == '_') {
                 buf.push(self.ch.unwrap());
@@ -68,23 +63,28 @@ impl<T: Iterator<Item = char>> Lexer<T> {
             }
 
             return Some(match buf.as_str() {
-                "print" => Token::Keyword(Keyword::PRINT),
-                "if"    => Token::Keyword(Keyword::IF),
-                "else"  => Token::Keyword(Keyword::ELSE),
+                "local" => Token::Keyword(Keyword::LOCAL),
+                "global" => Token::Keyword(Keyword::GLOBAL),
+                "extern" => Token::Keyword(Keyword::EXTERN),
+                "if" => Token::Keyword(Keyword::IF),
+                "else" => Token::Keyword(Keyword::ELSE),
+                "fn" => Token::Keyword(Keyword::FUNCTION),
                 _ => Token::Identifier(buf),
             });
         }
 
-        if self.check(|c| c.is_numeric()) {
-            let mut n = 0i32;
-            while self.check(|c| c.is_numeric()) {
+        if self.check(char::is_numeric) {
+            let mut n = 0i128;
+            while self.check(char::is_numeric) {
                 n *= 10;
-                n += self.ch.unwrap().to_digit(10).unwrap() as i32;
+                n += self.ch.unwrap().to_digit(10).unwrap() as i128;
                 self.advance();
             }
 
             return Some(Token::IntegerLiteral(n));
         }
+
+        // TODO FLOATS
 
         if let Some(ch) = self.ch {
             self.advance();
@@ -94,11 +94,7 @@ impl<T: Iterator<Item = char>> Lexer<T> {
                 } else {
                     Operator::Assign
                 }),
-                '*' => Some(if self.accept('*') {
-                    Operator::Power
-                } else {
-                    Operator::Multiply
-                }),
+                '*' => Some(Operator::Multiply),
                 '<' => Some(if self.accept('=') {
                     Operator::LessOrEqual
                 } else if self.accept('<') {
