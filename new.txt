@@ -1,11 +1,11 @@
 # Imports
-import module_name::symbol
-import module_name::symbol
-import module_name::symbol
-import module_name::symbol
+import module_name::symbol;
+import module_name::symbol;
+import module_name::symbol;
+import module_name::symbol;
 
 # Extern declaration
-extern cdecl i32 extern_function_name();
+extern "cdecl" i32 extern_function_name();
 
 # Global bariable 
 global u32 my_unsigned_global = 0;
@@ -16,7 +16,7 @@ struct MyType {
 }
 
 # Function definiton
-fn main() i32 {
+fn main() -> i32 {
   if 1 == 2 {
     # stuff
   } else {

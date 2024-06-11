@@ -25,15 +25,6 @@ where
     {
         self.ch.map_or(false, f)
     }
-
-    fn accept(&mut self, c: char) -> bool {
-        if self.ch == Some(c) {
-            self.advance();
-            true
-        } else {
-            false
-        }
-    }
 }
 
 impl<T> Iterator for Lexer<T>
@@ -47,21 +38,30 @@ where
             self.advance();
         }
 
-        if self.check(|c| c == '#') {
-            while self.check(|c| c != '\n') {
+        let ch = match self.ch {
+            Some(character) => character,
+            None => return None,
+        };
+
+        if ch == '#' {
+            self.advance();
+            while let Some(ch) = self.ch {
+                if ch == '\n' {
+                    break;
+                }
                 self.advance();
             }
-
             return self.next();
-        }
-
-        if self.check(char::is_alphabetic) {
+        } else if ch.is_alphabetic() {
             let mut buf = String::new();
-            while self.check(|c| c.is_alphanumeric() || c == '_') {
-                buf.push(self.ch.unwrap());
-                self.advance();
+            while let Some(ch) = self.ch {
+                if ch.is_alphanumeric() || ch == '_' {
+                    buf.push(self.ch.unwrap());
+                    self.advance();
+                } else {
+                    break;
+                }
             }
-
             return Some(match buf.as_str() {
                 "if" => Token::Keyword(Keyword::IF),
                 "else" => Token::Keyword(Keyword::ELSE),
@@ -70,81 +70,87 @@ where
                 "global" => Token::Keyword(Keyword::GLOBAL),
                 "extern" => Token::Keyword(Keyword::EXTERN),
                 "struct" => Token::Keyword(Keyword::STRUCT),
+                "import" => Token::Keyword(Keyword::IMPORT),
+                "false" => Token::Keyword(Keyword::FALSE),
                 "i32" => Token::PrimitiveType(Type::I32),
                 "u32" => Token::PrimitiveType(Type::U32),
                 "i64" => Token::PrimitiveType(Type::I64),
                 "u64" => Token::PrimitiveType(Type::U64),
                 "f32" => Token::PrimitiveType(Type::F32),
                 "f64" => Token::PrimitiveType(Type::F64),
+                "true" => Token::Keyword(Keyword::TRUE),
                 _ => Token::Identifier(buf),
             });
-        }
-
-        if self.check(char::is_numeric) {
+        } else if let '0'..='9' = ch {
             let mut n = 0i128;
-            while self.check(char::is_numeric) {
-                n *= 10;
-                n += self.ch.unwrap().to_digit(10).unwrap() as i128;
-                self.advance();
+            while let Some(ch) = self.ch {
+                if let Some(d) = ch.to_digit(10) {
+                    n *= 10;
+                    n += d as i128;
+                    self.advance();
+                } else {
+                    break;
+                }
             }
-
             return Some(Token::IntegerLiteral(n));
-        }
-
-        // TODO FLOATS
-
-        if let Some(ch) = self.ch {
+        } else if ch == '"' {
             self.advance();
-            if let Some(op) = match ch {
-                '=' => Some(if self.accept('=') {
-                    Operator::Equal
-                } else {
-                    Operator::Assign
-                }),
-                '*' => Some(Operator::Multiply),
-                '<' => Some(if self.accept('=') {
-                    Operator::LessOrEqual
-                } else if self.accept('<') {
-                    Operator::BinaryLeft
-                } else {
-                    Operator::Less
-                }),
-                '>' => Some(if self.accept('=') {
-                    Operator::GreaterOrEqual
-                } else if self.accept('>') {
-                    Operator::BinaryRight
-                } else {
-                    Operator::Greater
-                }),
-                '!' => Some(if self.accept('=') {
-                    Operator::NotEqual
-                } else {
-                    Operator::LogicNot
-                }),
-                '&' => Some(if self.accept('&') {
-                    Operator::LogicAnd
-                } else {
-                    Operator::BinaryAnd
-                }),
-                '|' => Some(if self.accept('|') {
-                    Operator::LogicOr
-                } else {
-                    Operator::BinaryOr
-                }),
-                '+' => Some(Operator::Add),
-                '-' => Some(Operator::Subtract),
-                '/' => Some(Operator::Divide),
-                '^' => Some(Operator::BinaryXor),
-                '~' => Some(Operator::BinaryNot),
-                '%' => Some(Operator::Modulo),
+            let mut buf = String::new();
+            let mut escaped = false;
+            while let Some(ch) = self.ch {
+                self.advance();
+                match (ch, escaped) {
+                    ('"', false) => break,
+                    ('\\', false) => {
+                        escaped = true;
+                        continue;
+                    }
+                    ('\\', true) => buf.push('\\'),
+                    ('n', true) => buf.push('\n'),
+                    ('"', true) => buf.push('"'),
+                    (_, false) => buf.push(ch),
+                    (_, true) => {
+                        buf.push('\\');
+                        buf.push(ch);
+                    }
+                }
+                escaped = false;
+            }
+            return Some(Token::StringLiteral(buf));
+        } else {
+            self.advance();
+            let ch2 = self.ch;
+            #[rustfmt::skip]
+            let op = match (ch, ch2) {
+                ('=', Some('=')) => { self.advance(); Some(Operator::Equal) }
+                ('<', Some('=')) => { self.advance(); Some(Operator::LessOrEqual) }
+                ('>', Some('=')) => { self.advance(); Some(Operator::GreaterOrEqual) }
+                ('>', Some('>')) => { self.advance(); Some(Operator::BinaryRight) }
+                ('<', Some('<')) => { self.advance(); Some(Operator::BinaryLeft) }
+                ('!', Some('=')) => { self.advance(); Some(Operator::NotEqual) }
+                ('&', Some('&')) => { self.advance(); Some(Operator::LogicAnd) }
+                ('|', Some('|')) => { self.advance(); Some(Operator::LogicOr) }
+                (':', Some(':')) => { self.advance(); Some(Operator::ScopeResolution) }
+                ('-', Some('>')) => { self.advance(); Some(Operator::RightArrow) }
+                ('+', _) => Some(Operator::Add),
+                ('-', _) => Some(Operator::Subtract),
+                ('*', _) => Some(Operator::Multiply),
+                ('/', _) => Some(Operator::Divide),
+                ('%', _) => Some(Operator::Modulo),
+                ('&', _) => Some(Operator::BinaryAnd),
+                ('|', _) => Some(Operator::BinaryOr),
+                ('^', _) => Some(Operator::BinaryXor),
+                ('~', _) => Some(Operator::BinaryNot),
+                ('=', _) => Some(Operator::Assign),
+                ('<', _) => Some(Operator::Less),
+                ('>', _) => Some(Operator::Greater),
                 _ => None,
-            } {
+            };
+            if let Some(op) = op {
                 return Some(Token::Operator(op));
             } else {
                 return Some(Token::Atom(ch));
             }
         }
-
-        None
     }
 }
