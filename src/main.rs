@@ -1,7 +1,8 @@
-pub mod ast;
-pub mod lexer;
-pub mod parser;
-pub mod token;
+mod ast;
+mod lexer;
+mod parser;
+mod token;
+mod value;
 
 use lexer::Lexer;
 use parser::Parser;
@@ -9,7 +10,7 @@ use parser::Parser;
 use std::{
     env::args_os,
     fs::File,
-    io::{self, stdout, BufRead, Read, Write},
+    io::{self, BufRead, Read, Write},
 };
 
 fn main() {

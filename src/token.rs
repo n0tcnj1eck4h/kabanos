@@ -1,10 +1,10 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Identifier(String),
-    PrimitiveType(Type),
     IntegerLiteral(i128),
     FloatingPointLiteral(f64),
     StringLiteral(String),
+    BooleanLiteral(bool),
     Operator(Operator),
     Keyword(Keyword),
     Atom(char),
@@ -21,8 +21,6 @@ pub enum Keyword {
     FUNCTION,
     WHILE,
     STRUCT,
-    TRUE,
-    FALSE,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -86,14 +84,4 @@ impl Operator {
            Operator::ScopeResolution => -1,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Type {
-    I32,
-    U32,
-    I64,
-    U64,
-    F32,
-    F64,
 }

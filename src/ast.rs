@@ -1,8 +1,9 @@
-use crate::token::{Operator, Type};
+use crate::token::Operator;
 
 #[derive(Debug)]
 pub struct Program {
-    pub imports: Vec<String>,
+    pub imports: Vec<Import>,
+    pub function_declarations: Vec<FunctionDeclaration>,
     pub function_definitions: Vec<FunctionDefinition>,
     pub globals: Vec<GlobalVariableDefintion>,
 }
@@ -12,23 +13,31 @@ pub struct FunctionDefinition {
     pub name: String,
     pub body: Statement,
     pub parameters: Vec<Parameter>,
-    pub return_type: Option<Type>,
+    pub return_type: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct FunctionDeclaration {
+    pub name: String,
+    pub parameters: Vec<Parameter>,
+    pub calling_convention: Option<String>,
+    pub return_type: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct GlobalVariableDefintion {
-    pub type_: Type,
+    pub global_type: String,
     pub name: String,
 }
 
 #[derive(Debug)]
 pub struct Import {
-    pub path: String,
+    pub path: Vec<String>,
 }
 
 #[derive(Debug)]
 pub struct Parameter {
-    pub type_: Type,
+    pub param_type: String,
     pub name: String,
 }
 
@@ -36,36 +45,18 @@ pub struct Parameter {
 pub enum Statement {
     Block(Vec<Statement>),
     Conditional(Expression, Box<Statement>, Option<Box<Statement>>),
-    LocalVar(Type, String),
-}
-
-impl Statement {
-    pub fn pretty_print(&self, depth: usize) {
-        for i in 0..depth {
-            if i == depth - 1 {
-                print!("├─ ");
-            } else {
-                print!("│  ");
-            }
-        }
-
-        match self {
-            Statement::Block(statements) => {
-                println!("block");
-                for s in statements.iter() {
-                    s.pretty_print(depth + 1);
-                }
-            }
-            Statement::LocalVar(..) => println!("local"),
-            Statement::Conditional(..) => println!("conditioanl"),
-        }
-    }
+    LocalVar(String, String),
+    Loop(Expression, Box<Statement>),
+    Assignment(String, Expression),
+    Expression(Expression),
 }
 
 #[derive(Debug)]
 pub enum Expression {
     IntegerLiteral(i128),
     FloatingPointLiteral(f64),
+    StringLiteral(String),
+    BooleanLiteral(bool),
     Identifier(String),
     BinaryOperation(Box<Expression>, Operator, Box<Expression>),
     UnaryOperation(Operator, Box<Expression>),

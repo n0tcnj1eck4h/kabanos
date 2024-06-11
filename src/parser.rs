@@ -1,5 +1,8 @@
 use crate::{
-    ast::{Expression, FunctionDefinition, GlobalVariableDefintion, Parameter, Program, Statement},
+    ast::{
+        Expression, FunctionDeclaration, FunctionDefinition, GlobalVariableDefintion, Import,
+        Parameter, Program, Statement,
+    },
     token::{Keyword, Operator, Token},
 };
 
@@ -41,7 +44,7 @@ where
             Ok(())
         } else {
             Err(ParsingError::UnexpectedTokenError(
-                self.current_token.clone(),
+                self.current_token.take(),
             ))
         }
     }
@@ -57,10 +60,11 @@ where
 
     pub fn program(&mut self) -> Result<Program, ParsingError> {
         let mut function_definitions = Vec::new();
+        let mut function_declarations = Vec::new();
         let mut imports = Vec::new();
         let mut globals = Vec::new();
 
-        while self.accept(Token::Keyword(Keyword::IMPORT)) {
+        while self.current_token == Some(Token::Keyword(Keyword::IMPORT)) {
             imports.push(self.import()?);
         }
 
@@ -70,12 +74,16 @@ where
                     function_definitions.push(self.function_definition()?)
                 }
                 Token::Keyword(Keyword::GLOBAL) => globals.push(self.global_var()?),
+                Token::Keyword(Keyword::EXTERN) => {
+                    function_declarations.push(self.function_declaration()?)
+                }
                 _ => return Err(ParsingError::UnexpectedTokenError(Some(token.clone()))),
             }
         }
 
         Ok(Program {
             imports,
+            function_declarations,
             function_definitions,
             globals,
         })
@@ -88,29 +96,27 @@ where
             match self.current_token {
                 Some(Token::Atom(')')) => {
                     self.advance();
-                    break;
+                    return Ok(parameters);
                 }
-                Some(Token::PrimitiveType(type_)) => {
-                    self.advance();
-                    if let Some(Token::Identifier(name)) = self.current_token.clone() {
-                        parameters.push(Parameter { type_, name })
+                Some(Token::Identifier(ref type_)) => {
+                    if let Some(Token::Identifier(ref name)) = self.current_token {
+                        parameters.push(Parameter {
+                            param_type: type_.clone(),
+                            name: name.clone(),
+                        });
+                        self.advance();
                     }
+                    self.advance();
                 }
                 _ => {
                     return Err(ParsingError::UnexpectedTokenError(
-                        self.current_token.clone(),
+                        self.current_token.take(),
                     ))
                 }
             }
 
-            if self.current_token != Some(Token::Atom(',')) {
-                return Err(ParsingError::UnexpectedTokenError(
-                    self.current_token.clone(),
-                ));
-            }
+            self.expect(Token::Atom(','))?;
         }
-
-        Ok(parameters)
     }
 
     pub fn function_definition(&mut self) -> Result<FunctionDefinition, ParsingError> {
@@ -119,13 +125,14 @@ where
             self.advance();
             if self.current_token == Some(Token::Atom('(')) {
                 let parameters = self.parameter_list()?;
-                let return_type = match self.current_token {
-                    Some(Token::PrimitiveType(return_type)) => {
+
+                let mut return_type = None;
+                if self.accept(Token::Operator(Operator::RightArrow)) {
+                    if let Some(Token::Identifier(ref ret_type)) = self.current_token {
+                        return_type = Some(ret_type.clone());
                         self.advance();
-                        Some(return_type)
                     }
-                    _ => None,
-                };
+                }
 
                 // todo uhh
                 let body = self.block()?;
@@ -140,20 +147,63 @@ where
         }
 
         Err(ParsingError::UnexpectedTokenError(
-            self.current_token.clone(),
+            self.current_token.take(),
         ))
     }
 
-    pub fn import(&mut self) -> Result<String, ParsingError> {
-        todo!()
+    pub fn import(&mut self) -> Result<Import, ParsingError> {
+        self.advance();
+        let mut path = Vec::new();
+        loop {
+            if let Some(Token::Identifier(ref path_segment)) = self.current_token {
+                path.push(path_segment.clone());
+                self.advance();
+            } else {
+                return Err(ParsingError::UnexpectedTokenError(
+                    self.current_token.take(),
+                ));
+            }
+
+            if self.accept(Token::Atom(';')) {
+                return Ok(Import { path });
+            }
+
+            if self.current_token == Some(Token::Operator(Operator::ScopeResolution)) {
+                self.advance();
+            } else {
+                return Err(ParsingError::UnexpectedTokenError(
+                    self.current_token.take(),
+                ));
+            }
+        }
     }
 
     pub fn while_loop(&mut self) -> Result<Statement, ParsingError> {
-        todo!()
+        self.advance();
+        Ok(Statement::Loop(
+            self.expression()?,
+            Box::new(self.statement()?),
+        ))
     }
 
     pub fn local_var(&mut self) -> Result<Statement, ParsingError> {
-        todo!()
+        self.advance();
+        if let Some(Token::Identifier(ref variable_type)) = self.current_token {
+            let variable_type = variable_type.clone();
+            self.advance();
+
+            if let Some(Token::Identifier(ref variable_name)) = self.current_token {
+                let variable_name = variable_name.clone();
+                self.advance();
+                if self.current_token == Some(Token::Operator(Operator::Assign)) {}
+                self.expect(Token::Atom(';'))?;
+                return Ok(Statement::LocalVar(variable_type, variable_name));
+            }
+        }
+
+        Err(ParsingError::UnexpectedTokenError(
+            self.current_token.take(),
+        ))
     }
 
     pub fn global_var(&mut self) -> Result<GlobalVariableDefintion, ParsingError> {
@@ -174,7 +224,7 @@ where
             self.block()
         } else {
             Err(ParsingError::StatementExpectedError(
-                self.current_token.to_owned(),
+                self.current_token.take(),
             ))
         }
     }
@@ -206,26 +256,35 @@ where
     }
 
     fn primary(&mut self) -> Result<Expression, ParsingError> {
-        // println!("primary");
         match self.current_token {
-            Some(Token::IntegerLiteral(integer)) => self.literal(integer),
-            Some(Token::Identifier(ref identifier)) => self.identifier(identifier.to_owned()),
+            Some(Token::IntegerLiteral(integer)) => {
+                self.advance();
+                Ok(Expression::IntegerLiteral(integer))
+            }
+            Some(Token::FloatingPointLiteral(float)) => {
+                self.advance();
+                Ok(Expression::FloatingPointLiteral(float))
+            }
+            Some(Token::BooleanLiteral(boolean)) => {
+                self.advance();
+                Ok(Expression::BooleanLiteral(boolean))
+            }
+            Some(Token::Identifier(ref identifier)) => {
+                let identifier = identifier.clone();
+                self.advance();
+                Ok(Expression::Identifier(identifier))
+            }
+            Some(Token::StringLiteral(ref literal)) => {
+                let literal = literal.clone();
+                self.advance();
+                Ok(Expression::StringLiteral(literal))
+            }
             Some(Token::Operator(op)) => self.unary(op),
             Some(Token::Atom('(')) => self.parenthesis_expression(),
             _ => Err(ParsingError::ExpressionExpectedError(
-                self.current_token.to_owned(),
+                self.current_token.take(),
             )),
         }
-    }
-
-    fn literal(&mut self, integer: i128) -> Result<Expression, ParsingError> {
-        self.advance();
-        Ok(Expression::IntegerLiteral(integer))
-    }
-
-    fn identifier(&mut self, identifier: String) -> Result<Expression, ParsingError> {
-        self.advance();
-        Ok(Expression::Identifier(identifier))
     }
 
     fn unary(&mut self, operator: Operator) -> Result<Expression, ParsingError> {
@@ -273,5 +332,39 @@ where
         self.expect(Token::Atom(')'))?;
 
         expr
+    }
+
+    fn function_declaration(&mut self) -> Result<FunctionDeclaration, ParsingError> {
+        self.advance();
+        let mut calling_convention = None;
+        if let Some(Token::StringLiteral(ref c)) = self.current_token {
+            calling_convention = Some(c.clone());
+            self.advance();
+        }
+        if let Some(Token::Identifier(ref name)) = self.current_token {
+            let name = name.clone();
+            self.advance();
+            if self.current_token == Some(Token::Atom('(')) {
+                let parameters = self.parameter_list()?;
+                let mut return_type = None;
+                if self.accept(Token::Operator(Operator::RightArrow)) {
+                    if let Some(Token::Identifier(ref ret_type)) = self.current_token {
+                        return_type = Some(ret_type.clone());
+                        self.advance();
+                    }
+                }
+                self.expect(Token::Atom(';'))?;
+                return Ok(FunctionDeclaration {
+                    name,
+                    parameters,
+                    calling_convention,
+                    return_type,
+                });
+            }
+        }
+
+        Err(ParsingError::UnexpectedTokenError(
+            self.current_token.take(),
+        ))
     }
 }

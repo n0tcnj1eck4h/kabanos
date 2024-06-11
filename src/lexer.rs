@@ -1,4 +1,4 @@
-use crate::token::{Keyword, Operator, Token, Type};
+use crate::token::{Keyword, Operator, Token};
 
 pub struct Lexer<T> {
     stream: T,
@@ -71,14 +71,9 @@ where
                 "extern" => Token::Keyword(Keyword::EXTERN),
                 "struct" => Token::Keyword(Keyword::STRUCT),
                 "import" => Token::Keyword(Keyword::IMPORT),
-                "false" => Token::Keyword(Keyword::FALSE),
-                "i32" => Token::PrimitiveType(Type::I32),
-                "u32" => Token::PrimitiveType(Type::U32),
-                "i64" => Token::PrimitiveType(Type::I64),
-                "u64" => Token::PrimitiveType(Type::U64),
-                "f32" => Token::PrimitiveType(Type::F32),
-                "f64" => Token::PrimitiveType(Type::F64),
-                "true" => Token::Keyword(Keyword::TRUE),
+                "while" => Token::Keyword(Keyword::WHILE),
+                "false" => Token::BooleanLiteral(false),
+                "true" => Token::BooleanLiteral(true),
                 _ => Token::Identifier(buf),
             });
         } else if let '0'..='9' = ch {
@@ -88,6 +83,22 @@ where
                     n *= 10;
                     n += d as i128;
                     self.advance();
+                } else if ch == '.' {
+                    self.advance();
+                    let mut decimals = 0i128;
+                    let mut decimal_places = 0u32;
+                    while let Some(ch) = self.ch {
+                        if let Some(d) = ch.to_digit(10) {
+                            self.advance();
+                            decimals *= 10;
+                            decimals += d as i128;
+                            decimal_places += 1;
+                        } else {
+                            return Some(Token::FloatingPointLiteral(
+                                n as f64 + decimals as f64 / 10u32.pow(decimal_places) as f64,
+                            ));
+                        }
+                    }
                 } else {
                     break;
                 }
@@ -144,6 +155,7 @@ where
                 ('=', _) => Some(Operator::Assign),
                 ('<', _) => Some(Operator::Less),
                 ('>', _) => Some(Operator::Greater),
+                ('!', _) => Some(Operator::LogicNot),
                 _ => None,
             };
             if let Some(op) = op {
