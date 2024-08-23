@@ -1,10 +1,11 @@
 use crate::token::Operator;
 
 #[derive(Debug)]
-pub struct Program {
+pub struct Module {
     pub imports: Vec<Import>,
     pub function_declarations: Vec<FunctionDeclaration>,
     pub function_definitions: Vec<FunctionDefinition>,
+    pub type_definitions: Vec<Composite>,
     pub globals: Vec<GlobalVariableDefintion>,
 }
 
@@ -26,7 +27,7 @@ pub struct FunctionDeclaration {
 
 #[derive(Debug)]
 pub struct GlobalVariableDefintion {
-    pub global_type: String,
+    pub datatype: String,
     pub name: String,
 }
 
@@ -60,4 +61,17 @@ pub enum Expression {
     Identifier(String),
     BinaryOperation(Box<Expression>, Operator, Box<Expression>),
     UnaryOperation(Operator, Box<Expression>),
+    FunctionCall(String, Vec<Expression>),
+}
+
+#[derive(Debug)]
+pub struct CompositeField {
+    pub name: String,
+    pub datatype: String,
+}
+
+#[derive(Debug)]
+pub struct Composite {
+    pub name: String,
+    pub fields: Vec<CompositeField>,
 }

@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::token::{Keyword, Operator, Token};
 
 pub struct Lexer<T> {
@@ -44,34 +46,29 @@ where
         };
 
         if ch == '#' {
-            self.advance();
             while let Some(ch) = self.ch {
+                self.advance();
                 if ch == '\n' {
                     break;
                 }
-                self.advance();
             }
             return self.next();
         } else if ch.is_alphabetic() {
             let mut buf = String::new();
             while let Some(ch) = self.ch {
                 if ch.is_alphanumeric() || ch == '_' {
-                    buf.push(self.ch.unwrap());
+                    buf.push(ch);
                     self.advance();
                 } else {
                     break;
                 }
             }
+
+            if let Ok(keyword) = Keyword::from_str(&buf) {
+                return Some(Token::Keyword(keyword));
+            }
+
             return Some(match buf.as_str() {
-                "if" => Token::Keyword(Keyword::IF),
-                "else" => Token::Keyword(Keyword::ELSE),
-                "fn" => Token::Keyword(Keyword::FUNCTION),
-                "local" => Token::Keyword(Keyword::LOCAL),
-                "global" => Token::Keyword(Keyword::GLOBAL),
-                "extern" => Token::Keyword(Keyword::EXTERN),
-                "struct" => Token::Keyword(Keyword::STRUCT),
-                "import" => Token::Keyword(Keyword::IMPORT),
-                "while" => Token::Keyword(Keyword::WHILE),
                 "false" => Token::BooleanLiteral(false),
                 "true" => Token::BooleanLiteral(true),
                 _ => Token::Identifier(buf),
@@ -85,18 +82,15 @@ where
                     self.advance();
                 } else if ch == '.' {
                     self.advance();
-                    let mut decimals = 0i128;
-                    let mut decimal_places = 0u32;
+                    let mut denominator = 1f64;
+                    let mut decimals = 0f64;
                     while let Some(ch) = self.ch {
                         if let Some(d) = ch.to_digit(10) {
                             self.advance();
-                            decimals *= 10;
-                            decimals += d as i128;
-                            decimal_places += 1;
+                            denominator *= 10.0;
+                            decimals += d as f64 / denominator;
                         } else {
-                            return Some(Token::FloatingPointLiteral(
-                                n as f64 + decimals as f64 / 10u32.pow(decimal_places) as f64,
-                            ));
+                            return Some(Token::FloatingPointLiteral(n as f64 + decimals));
                         }
                     }
                 } else {
@@ -109,7 +103,6 @@ where
             let mut buf = String::new();
             let mut escaped = false;
             while let Some(ch) = self.ch {
-                self.advance();
                 match (ch, escaped) {
                     ('"', false) => break,
                     ('\\', false) => {
@@ -126,6 +119,7 @@ where
                     }
                 }
                 escaped = false;
+                self.advance();
             }
             return Some(Token::StringLiteral(buf));
         } else {

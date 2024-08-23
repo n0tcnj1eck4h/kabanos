@@ -1,36 +1,31 @@
 mod ast;
 mod lexer;
 mod parser;
+mod semantic;
 mod token;
-mod value;
 
 use lexer::Lexer;
 use parser::Parser;
 
 use std::{
     env::args_os,
-    fs::File,
-    io::{self, BufRead, Read, Write},
+    io::{self, BufRead, Write},
 };
 
 fn main() {
     if let Some(filename) = args_os().nth(1) {
-        // reading from a file
-        let mut file = File::open(filename).expect("Failed to open file");
-        let mut contents = String::new();
-        file.read_to_string(&mut contents).unwrap();
+        let contents = std::fs::read_to_string(filename).expect("Failed to read file");
 
         let lexer = Lexer::new(contents.chars());
         let mut parser = Parser::new(lexer);
 
-        match parser.program() {
+        match parser.module() {
             Ok(statements) => {
                 println!("{:#?}", statements);
             }
             Err(err) => println!("{:?}", err),
         }
     } else {
-        // enter REPL
         let stdin = io::stdin();
         let mut buf = String::new();
 

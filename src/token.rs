@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Identifier(String),
@@ -16,11 +18,30 @@ pub enum Keyword {
     ELSE,
     IMPORT,
     EXTERN,
-    LOCAL,
     GLOBAL,
     FUNCTION,
     WHILE,
     STRUCT,
+    LET,
+}
+
+impl FromStr for Keyword {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        return match s {
+            "if" => Ok(Keyword::IF),
+            "else" => Ok(Keyword::ELSE),
+            "fn" => Ok(Keyword::FUNCTION),
+            "let" => Ok(Keyword::LET),
+            "global" => Ok(Keyword::GLOBAL),
+            "extern" => Ok(Keyword::EXTERN),
+            "struct" => Ok(Keyword::STRUCT),
+            "import" => Ok(Keyword::IMPORT),
+            "while" => Ok(Keyword::WHILE),
+            _ => Err(()),
+        };
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]

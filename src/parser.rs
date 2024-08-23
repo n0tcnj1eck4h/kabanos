@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        Expression, FunctionDeclaration, FunctionDefinition, GlobalVariableDefintion, Import,
-        Parameter, Program, Statement,
+        Composite, CompositeField, Expression, FunctionDeclaration, FunctionDefinition,
+        GlobalVariableDefintion, Import, Module, Parameter, Statement,
     },
     token::{Keyword, Operator, Token},
 };
@@ -58,11 +58,12 @@ where
         }
     }
 
-    pub fn program(&mut self) -> Result<Program, ParsingError> {
+    pub fn module(&mut self) -> Result<Module, ParsingError> {
         let mut function_definitions = Vec::new();
         let mut function_declarations = Vec::new();
         let mut imports = Vec::new();
         let mut globals = Vec::new();
+        let mut type_definitions = Vec::new();
 
         while self.current_token == Some(Token::Keyword(Keyword::IMPORT)) {
             imports.push(self.import()?);
@@ -77,20 +78,60 @@ where
                 Token::Keyword(Keyword::EXTERN) => {
                     function_declarations.push(self.function_declaration()?)
                 }
+                Token::Keyword(Keyword::STRUCT) => {
+                    type_definitions.push(self.structure()?);
+                }
                 _ => return Err(ParsingError::UnexpectedTokenError(Some(token.clone()))),
             }
         }
 
-        Ok(Program {
+        Ok(Module {
             imports,
             function_declarations,
             function_definitions,
+            type_definitions,
             globals,
         })
     }
 
-    pub fn parameter_list(&mut self) -> Result<Vec<Parameter>, ParsingError> {
+    fn structure(&mut self) -> Result<Composite, ParsingError> {
         self.advance();
+        if let Some(Token::Identifier(ref type_name)) = self.current_token {
+            let type_name = type_name.clone();
+            let mut fields = Vec::new();
+            self.advance();
+            self.expect(Token::Atom('{'))?;
+            while let Some(Token::Identifier(ref field_type)) = self.current_token {
+                let field_type = field_type.clone();
+                self.advance();
+                if let Some(Token::Identifier(ref field_name)) = self.current_token {
+                    let field_name = field_name.clone();
+                    fields.push(CompositeField {
+                        name: field_name,
+                        datatype: field_type,
+                    });
+                    self.advance();
+                    self.expect(Token::Atom(';'))?;
+                } else {
+                    return Err(ParsingError::UnexpectedTokenError(
+                        self.current_token.take(),
+                    ));
+                }
+            }
+            self.expect(Token::Atom('}'))?;
+            return Ok(Composite {
+                name: type_name,
+                fields,
+            });
+        }
+
+        Err(ParsingError::UnexpectedTokenError(
+            self.current_token.take(),
+        ))
+    }
+
+    pub fn parameter_list(&mut self) -> Result<Vec<Parameter>, ParsingError> {
+        self.expect(Token::Atom('('))?;
         let mut parameters = Vec::new();
         loop {
             match self.current_token {
@@ -121,9 +162,9 @@ where
 
     pub fn function_definition(&mut self) -> Result<FunctionDefinition, ParsingError> {
         self.advance();
-        if let Some(Token::Identifier(function_name)) = self.current_token.clone() {
-            self.advance();
-            if self.current_token == Some(Token::Atom('(')) {
+        match self.current_token.take() {
+            Some(Token::Identifier(function_name)) => {
+                self.advance();
                 let parameters = self.parameter_list()?;
 
                 let mut return_type = None;
@@ -144,11 +185,13 @@ where
                     return_type,
                 });
             }
-        }
 
-        Err(ParsingError::UnexpectedTokenError(
-            self.current_token.take(),
-        ))
+            _ => {
+                return Err(ParsingError::UnexpectedTokenError(
+                    self.current_token.take(),
+                ))
+            }
+        };
     }
 
     pub fn import(&mut self) -> Result<Import, ParsingError> {
@@ -186,7 +229,7 @@ where
         ))
     }
 
-    pub fn local_var(&mut self) -> Result<Statement, ParsingError> {
+    pub fn local_let(&mut self) -> Result<Statement, ParsingError> {
         self.advance();
         if let Some(Token::Identifier(ref variable_type)) = self.current_token {
             let variable_type = variable_type.clone();
@@ -207,7 +250,21 @@ where
     }
 
     pub fn global_var(&mut self) -> Result<GlobalVariableDefintion, ParsingError> {
-        todo!()
+        self.advance();
+        if let Some(Token::Identifier(ref datatype)) = self.current_token {
+            let datatype = datatype.clone();
+            self.advance();
+            if let Some(Token::Identifier(ref name)) = self.current_token {
+                let name = name.clone();
+                self.advance();
+                self.expect(Token::Atom(';'))?;
+                return Ok(GlobalVariableDefintion { datatype, name });
+            }
+        }
+
+        Err(ParsingError::UnexpectedTokenError(
+            self.current_token.take(),
+        ))
     }
 
     pub fn statement(&mut self) -> Result<Statement, ParsingError> {
@@ -215,17 +272,17 @@ where
             match keyword {
                 Keyword::IF => self.conditional(),
                 Keyword::WHILE => self.while_loop(),
-                Keyword::LOCAL => self.local_var(),
+                Keyword::LET => self.local_let(),
                 _ => Err(ParsingError::StatementExpectedError(
-                    self.current_token.to_owned(),
+                    self.current_token.take(),
                 )),
             }
         } else if self.current_token == Some(Token::Atom('{')) {
             self.block()
         } else {
-            Err(ParsingError::StatementExpectedError(
-                self.current_token.take(),
-            ))
+            let expr_statement = Statement::Expression(self.expression()?);
+            self.expect(Token::Atom(';'))?;
+            Ok(expr_statement)
         }
     }
 
@@ -272,7 +329,21 @@ where
             Some(Token::Identifier(ref identifier)) => {
                 let identifier = identifier.clone();
                 self.advance();
-                Ok(Expression::Identifier(identifier))
+                if let Some(Token::Atom('(')) = self.current_token {
+                    let mut args = Vec::new();
+                    self.advance();
+                    while self.current_token != Some(Token::Atom(')')) {
+                        args.push(self.expression()?);
+                        if self.current_token != Some(Token::Atom(',')) {
+                            break;
+                        }
+                        self.advance();
+                    }
+                    self.advance();
+                    Ok(Expression::FunctionCall(identifier, args))
+                } else {
+                    Ok(Expression::Identifier(identifier))
+                }
             }
             Some(Token::StringLiteral(ref literal)) => {
                 let literal = literal.clone();
