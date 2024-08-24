@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum Token {
+pub enum TokenKind {
     Identifier(String),
     IntegerLiteral(i128),
     FloatingPointLiteral(f64),
@@ -10,6 +10,26 @@ pub enum Token {
     Operator(Operator),
     Keyword(Keyword),
     Atom(char),
+    None,
+}
+
+impl Default for TokenKind {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct Token {
+    pub kind: TokenKind,
+    pub col: usize,
+    pub row: usize,
+}
+
+impl PartialEq<TokenKind> for Token {
+    fn eq(&self, other: &TokenKind) -> bool {
+        self.kind == *other
+    }
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -23,6 +43,16 @@ pub enum Keyword {
     WHILE,
     STRUCT,
     LET,
+}
+
+impl PartialEq<Keyword> for Token {
+    fn eq(&self, other: &Keyword) -> bool {
+        if let TokenKind::Keyword(keyword) = self.kind {
+            keyword == *other
+        } else {
+            false
+        }
+    }
 }
 
 impl FromStr for Keyword {
@@ -103,6 +133,16 @@ impl Operator {
            Operator::LogicNot        => -1,
            Operator::RightArrow      => -1,
            Operator::ScopeResolution => -1,
+        }
+    }
+}
+
+impl PartialEq<Operator> for Token {
+    fn eq(&self, other: &Operator) -> bool {
+        if let TokenKind::Operator(op) = self.kind {
+            op == *other
+        } else {
+            false
         }
     }
 }

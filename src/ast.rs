@@ -46,7 +46,7 @@ pub struct Parameter {
 pub enum Statement {
     Block(Vec<Statement>),
     Conditional(Expression, Box<Statement>, Option<Box<Statement>>),
-    LocalVar(String, String),
+    LocalVar(String, Option<String>, Option<Expression>),
     Loop(Expression, Box<Statement>),
     Assignment(String, Expression),
     Expression(Expression),

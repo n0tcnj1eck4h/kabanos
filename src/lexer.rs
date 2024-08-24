@@ -1,9 +1,11 @@
 use std::str::FromStr;
 
-use crate::token::{Keyword, Operator, Token};
+use crate::token::{Keyword, Operator, Token, TokenKind};
 
 pub struct Lexer<T> {
     stream: T,
+    col: usize,
+    row: usize,
     ch: Option<char>,
 }
 
@@ -13,11 +15,30 @@ where
 {
     pub fn new(mut stream: T) -> Self {
         let ch = stream.next();
-        Lexer { stream, ch }
+        Lexer {
+            stream,
+            ch,
+            col: 0,
+            row: 0,
+        }
+    }
+
+    fn token(&self, kind: TokenKind) -> Option<Token> {
+        Some(Token {
+            kind,
+            col: self.col,
+            row: self.row,
+        })
     }
 
     fn advance(&mut self) -> bool {
         self.ch = self.stream.next();
+        if let Some('\n') = self.ch {
+            self.col = 1;
+            self.row += 1;
+        } else {
+            self.col += 1;
+        }
         self.ch.is_some()
     }
 
@@ -65,14 +86,14 @@ where
             }
 
             if let Ok(keyword) = Keyword::from_str(&buf) {
-                return Some(Token::Keyword(keyword));
+                return self.token(TokenKind::Keyword(keyword));
             }
 
-            return Some(match buf.as_str() {
-                "false" => Token::BooleanLiteral(false),
-                "true" => Token::BooleanLiteral(true),
-                _ => Token::Identifier(buf),
-            });
+            return match buf.as_str() {
+                "false" => self.token(TokenKind::BooleanLiteral(false)),
+                "true" => self.token(TokenKind::BooleanLiteral(true)),
+                _ => self.token(TokenKind::Identifier(buf)),
+            };
         } else if let '0'..='9' = ch {
             let mut n = 0i128;
             while let Some(ch) = self.ch {
@@ -90,14 +111,15 @@ where
                             denominator *= 10.0;
                             decimals += d as f64 / denominator;
                         } else {
-                            return Some(Token::FloatingPointLiteral(n as f64 + decimals));
+                            return self
+                                .token(TokenKind::FloatingPointLiteral(n as f64 + decimals));
                         }
                     }
                 } else {
                     break;
                 }
             }
-            return Some(Token::IntegerLiteral(n));
+            return self.token(TokenKind::IntegerLiteral(n));
         } else if ch == '"' {
             self.advance();
             let mut buf = String::new();
@@ -121,7 +143,7 @@ where
                 escaped = false;
                 self.advance();
             }
-            return Some(Token::StringLiteral(buf));
+            return self.token(TokenKind::StringLiteral(buf));
         } else {
             self.advance();
             let ch2 = self.ch;
@@ -153,9 +175,9 @@ where
                 _ => None,
             };
             if let Some(op) = op {
-                return Some(Token::Operator(op));
+                return self.token(TokenKind::Operator(op));
             } else {
-                return Some(Token::Atom(ch));
+                return self.token(TokenKind::Atom(ch));
             }
         }
     }

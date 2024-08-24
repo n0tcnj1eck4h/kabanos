@@ -27,8 +27,11 @@ fn main() -> i32 {
     # stuff
   }
 
-  #let namber = 0; 
-  #let exit: bool = false;
+  let namber = 0; 
+  let exit: bool = false;
+  let yes;
+
+  yes = namber;
 
   foo+bar;
   test();

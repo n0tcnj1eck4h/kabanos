@@ -6,6 +6,7 @@ mod token;
 
 use lexer::Lexer;
 use parser::Parser;
+use token::Token;
 
 use std::{
     env::args_os,
@@ -17,7 +18,12 @@ fn main() {
         let contents = std::fs::read_to_string(filename).expect("Failed to read file");
 
         let lexer = Lexer::new(contents.chars());
-        let mut parser = Parser::new(lexer);
+        let tokens: Vec<Token> = lexer.into_iter().collect();
+        for token in &tokens {
+            println!("{:?}", token);
+        }
+
+        let mut parser = Parser::new(tokens.into_iter()).unwrap();
 
         match parser.module() {
             Ok(statements) => {
