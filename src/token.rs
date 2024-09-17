@@ -19,6 +19,16 @@ impl Default for TokenKind {
     }
 }
 
+impl PartialEq<char> for Token {
+    fn eq(&self, other: &char) -> bool {
+        if let TokenKind::Atom(ch) = self.kind {
+            ch == *other
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Token {
     pub kind: TokenKind,

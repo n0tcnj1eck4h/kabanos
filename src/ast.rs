@@ -12,7 +12,7 @@ pub struct Module {
 #[derive(Debug)]
 pub struct FunctionDefinition {
     pub name: String,
-    pub body: Statement,
+    pub body: Vec<Statement>,
     pub parameters: Vec<Parameter>,
     pub return_type: Option<String>,
 }
@@ -42,7 +42,7 @@ pub struct Parameter {
     pub name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Statement {
     Block(Vec<Statement>),
     Conditional(Expression, Box<Statement>, Option<Box<Statement>>),
@@ -52,7 +52,7 @@ pub enum Statement {
     Expression(Expression),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     IntegerLiteral(i128),
     FloatingPointLiteral(f64),

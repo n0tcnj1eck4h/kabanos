@@ -16,19 +16,13 @@ pub enum ParsingError {
     UnexpectedEOF,
 }
 
-pub struct EOF;
-
-impl From<EOF> for ParsingError {
-    fn from(_: EOF) -> Self {
-        ParsingError::UnexpectedEOF
-    }
-}
-
 pub struct Parser<L> {
     lexer: L,
     token: Token,
     next_token: Option<Token>,
 }
+
+// pub type Result<T> = std::result::Result<T, ParsingError>;
 
 impl<L> Parser<L>
 where
@@ -44,7 +38,7 @@ where
         })
     }
 
-    fn advance(&mut self) -> Result<(), EOF> {
+    fn advance(&mut self) -> Result<(), ParsingError> {
         let next_token = self.next_token.take();
         match next_token {
             Some(token) => {
@@ -52,7 +46,7 @@ where
                 self.token = token;
                 self.next_token = self.lexer.next();
             }
-            None => return Err(EOF),
+            None => return Err(ParsingError::UnexpectedEOF),
         }
         Ok(())
     }
@@ -73,11 +67,11 @@ where
     }
 
     pub fn module(&mut self) -> Result<Module, ParsingError> {
-        let mut function_definitions = Vec::new();
-        let mut function_declarations = Vec::new();
+        let mut fn_defs = Vec::new();
+        let mut fn_decls = Vec::new();
         let mut imports = Vec::new();
         let mut globals = Vec::new();
-        let mut type_definitions = Vec::new();
+        let mut typedefs = Vec::new();
 
         while self.token.kind == TokenKind::Keyword(Keyword::IMPORT) {
             imports.push(self.import()?);
@@ -86,28 +80,29 @@ where
         while self.next_token.is_some() {
             match self.token.kind {
                 TokenKind::Keyword(Keyword::FUNCTION) => {
-                    function_definitions.push(self.function_definition()?)
+                    fn_defs.push(self.fn_def()?);
                 }
                 TokenKind::Keyword(Keyword::GLOBAL) => globals.push(self.global_var()?),
                 TokenKind::Keyword(Keyword::EXTERN) => {
-                    function_declarations.push(self.function_declaration()?)
+                    fn_decls.push(self.function_declaration()?);
                 }
                 TokenKind::Keyword(Keyword::STRUCT) => {
-                    type_definitions.push(self.structure()?);
+                    typedefs.push(self.structure()?);
                 }
                 _ => self.error()?,
             }
         }
 
         match self.advance() {
-            Ok(()) => Err(ParsingError::UnexpectedTokenError(self.token.clone())),
-            Err(EOF) => Ok(Module {
+            Ok(()) => self.error()?,
+            Err(ParsingError::UnexpectedEOF) => Ok(Module {
                 imports,
-                function_declarations,
-                function_definitions,
-                type_definitions,
+                function_declarations: fn_decls,
+                function_definitions: fn_defs,
+                type_definitions: typedefs,
                 globals,
             }),
+            _ => unreachable!(),
         }
     }
 
@@ -134,7 +129,7 @@ where
                 }
             }
 
-            if self.token.kind == TokenKind::Atom('}') {
+            if self.token == '}' {
                 // Special case where it's okay for the stream to end
                 let _ = self.advance();
             } else {
@@ -150,7 +145,7 @@ where
         self.error()
     }
 
-    pub fn parameter_list(&mut self) -> Result<Vec<Parameter>, ParsingError> {
+    fn param_list(&mut self) -> Result<Vec<Parameter>, ParsingError> {
         self.expect(TokenKind::Atom('('))?;
         let mut parameters = Vec::new();
         loop {
@@ -178,27 +173,24 @@ where
         }
     }
 
-    pub fn function_definition(&mut self) -> Result<FunctionDefinition, ParsingError> {
+    fn fn_def(&mut self) -> Result<FunctionDefinition, ParsingError> {
         self.advance()?;
-        match self.token.kind {
-            TokenKind::Identifier(ref function_name) => {
-                let function_name = function_name.clone();
+        if let TokenKind::Identifier(ref function_name) = self.token.kind {
+            let function_name = function_name.clone();
+            self.advance()?;
+            let parameters = self.param_list()?;
+
+            let mut return_type = None;
+            if self.token == Operator::RightArrow {
                 self.advance()?;
-                let parameters = self.parameter_list()?;
-
-                let mut return_type = None;
-                if self.token == TokenKind::Operator(Operator::RightArrow) {
+                if let TokenKind::Identifier(ref ret_type) = self.token.kind {
+                    return_type = Some(ret_type.clone());
                     self.advance()?;
-                    // what
-                    if let TokenKind::Identifier(ref ret_type) = self.token.kind {
-                        return_type = Some(ret_type.clone());
-                        self.advance()?;
-                    }
                 }
+            }
 
-                // todo uhh
-                let body = self.block()?;
-
+            if self.token == '{' {
+                let body = self.fn_body()?;
                 return Ok(FunctionDefinition {
                     name: function_name,
                     body,
@@ -206,9 +198,9 @@ where
                     return_type,
                 });
             }
+        }
 
-            _ => return self.error(),
-        };
+        return self.error();
     }
 
     pub fn import(&mut self) -> Result<Import, ParsingError> {
@@ -222,13 +214,13 @@ where
                 return self.error();
             }
 
-            if self.token == TokenKind::Atom(';') {
+            if self.token == ';' {
                 // It's okay for the file to end after an import
                 let _ = self.advance();
                 return Ok(Import { path });
             }
 
-            if self.token == TokenKind::Operator(Operator::ScopeResolution) {
+            if self.token == Operator::ScopeResolution {
                 self.advance()?;
             } else {
                 return self.error();
@@ -250,7 +242,7 @@ where
             let variable_name = variable_name.clone();
             let mut explicit_type = None;
             self.advance()?;
-            if self.token == TokenKind::Atom(':') {
+            if self.token == ':' {
                 self.advance()?;
                 if let TokenKind::Identifier(ref identifier) = self.token.kind {
                     explicit_type = Some(identifier.clone());
@@ -300,7 +292,7 @@ where
                 Keyword::LET => self.local_let(),
                 _ => Err(ParsingError::StatementExpectedError(self.token.clone())),
             }
-        } else if self.token == TokenKind::Atom('{') {
+        } else if self.token == '{' {
             self.block()
         } else {
             let expr_statement = Statement::Expression(self.expression()?);
@@ -315,6 +307,7 @@ where
         let stmt = self.statement()?;
 
         let else_branch = if self.token == Keyword::ELSE {
+            self.advance()?;
             Some(Box::new(self.statement()?))
         } else {
             None
@@ -327,12 +320,25 @@ where
         self.advance()?;
 
         let mut statements = Vec::new();
-        while self.token != TokenKind::Atom('}') {
+        while self.token != '}' {
             statements.push(self.statement()?)
         }
 
         self.advance()?;
         Ok(Statement::Block(statements))
+    }
+
+    fn fn_body(&mut self) -> Result<Vec<Statement>, ParsingError> {
+        self.advance()?;
+
+        let mut statements = Vec::new();
+        while self.token != '}' {
+            statements.push(self.statement()?)
+        }
+
+        // it's okay for the file to end after the closing brace
+        let _ = self.advance();
+        Ok(statements)
     }
 
     fn primary(&mut self) -> Result<Expression, ParsingError> {
@@ -355,9 +361,9 @@ where
                 if let TokenKind::Atom('(') = self.token.kind {
                     let mut args = Vec::new();
                     self.advance()?;
-                    while self.token != TokenKind::Atom(')') {
+                    while self.token != ')' {
                         args.push(self.expression()?);
-                        if self.token != TokenKind::Atom(',') {
+                        if self.token != ',' {
                             break;
                         }
                         self.advance()?;
@@ -436,8 +442,8 @@ where
         if let TokenKind::Identifier(ref name) = self.token.kind {
             let name = name.clone();
             self.advance()?;
-            if self.token == TokenKind::Atom('(') {
-                let parameters = self.parameter_list()?;
+            if self.token == '(' {
+                let parameters = self.param_list()?;
                 let mut return_type = None;
                 if self.token == Operator::RightArrow {
                     if let TokenKind::Identifier(ref ret_type) = self.token.kind {

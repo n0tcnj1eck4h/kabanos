@@ -1,23 +1,23 @@
 # Imports
-import module_name::symbol;
-import module_name::symbol;
-import module_name::symbol;
-import module_name::symbol;
+# import module_name::symbol;
+# import module_name::symbol;
+# import module_name::symbol;
+# import module_name::symbol;
 
 # Extern declaration
 # extern "cdecl" i32 extern_function_name();
 
 # Global bariable 
 #global u32 my_unsigned_global = 0; DO THIS LATER
-global u32 my_unsigned_global_without_a_value;
-
-struct MyType {
- u32 field1;
- i8 field2;
-}
-
-struct Empty {
-}
+#global u32 my_unsigned_global_without_a_value;
+#
+#struct MyType {
+# u32 field1;
+# i8 field2;
+#}
+#
+#struct Empty {
+#}
 
 # Function definiton
 fn main() -> i32 {

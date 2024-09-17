@@ -1,9 +1,13 @@
 mod ast;
+mod codegen;
 mod lexer;
 mod parser;
-mod semantic;
+// mod semantic;
+// mod symbol;
 mod token;
 
+use codegen::{IRBuilder, IRContext};
+use inkwell::context::Context;
 use lexer::Lexer;
 use parser::Parser;
 use token::Token;
@@ -19,15 +23,25 @@ fn main() {
 
         let lexer = Lexer::new(contents.chars());
         let tokens: Vec<Token> = lexer.into_iter().collect();
-        for token in &tokens {
-            println!("{:?}", token);
-        }
 
         let mut parser = Parser::new(tokens.into_iter()).unwrap();
 
         match parser.module() {
-            Ok(statements) => {
-                println!("{:#?}", statements);
+            Ok(porgram) => {
+                let context = Context::create();
+                let builder = context.create_builder();
+                let module = context.create_module("tmp");
+                let irbuiler = IRContext {
+                    context: &context,
+                    builder: &builder,
+                    module: &module,
+                };
+
+                for function in porgram.function_definitions {
+                    function.codegen(&irbuiler).unwrap();
+                }
+
+                // println!("{:#?}", &module);
             }
             Err(err) => println!("{:?}", err),
         }
