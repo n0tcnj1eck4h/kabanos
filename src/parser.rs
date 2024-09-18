@@ -8,7 +8,7 @@ use crate::{
     token::{Keyword, Operator, Token, TokenKind},
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ParsingError {
     UnexpectedTokenError(Token),
     ExpressionExpectedError(Token),
@@ -93,16 +93,16 @@ where
             }
         }
 
-        match self.advance() {
-            Ok(()) => self.error()?,
-            Err(ParsingError::UnexpectedEOF) => Ok(Module {
+        if self.advance() == Err(ParsingError::UnexpectedEOF) {
+            Ok(Module {
                 imports,
                 function_declarations: fn_decls,
                 function_definitions: fn_defs,
                 type_definitions: typedefs,
                 globals,
-            }),
-            _ => unreachable!(),
+            })
+        } else {
+            self.error()?
         }
     }
 
@@ -149,24 +149,21 @@ where
         self.expect(TokenKind::Atom('('))?;
         let mut parameters = Vec::new();
         loop {
-            match self.token.kind {
-                TokenKind::Atom(')') => {
-                    self.advance()?;
-                    return Ok(parameters);
-                }
-                TokenKind::Identifier(ref mut param_type) => {
-                    let param_type = mem::take(param_type);
-                    self.advance()?;
-                    if let TokenKind::Identifier(ref mut name) = self.token.kind {
-                        parameters.push(Parameter {
-                            param_type,
-                            name: mem::take(name),
-                        });
-                        self.advance()?;
-                    }
+            if let TokenKind::Identifier(ref mut param_type) = self.token.kind {
+                let param_type = mem::take(param_type);
+                self.advance()?;
+                if let TokenKind::Identifier(ref mut name) = self.token.kind {
+                    parameters.push(Parameter {
+                        param_type,
+                        name: mem::take(name),
+                    });
                     self.advance()?;
                 }
-                _ => return self.error(),
+            }
+
+            if self.token == TokenKind::Atom(')') {
+                self.advance()?;
+                return Ok(parameters);
             }
 
             self.expect(TokenKind::Atom(','))?;
@@ -290,6 +287,7 @@ where
                 Keyword::IF => self.conditional(),
                 Keyword::WHILE => self.while_loop(),
                 Keyword::LET => self.local_let(),
+                Keyword::RETURN => self.ret(),
                 _ => Err(ParsingError::StatementExpectedError(self.token.clone())),
             }
         } else if self.token == '{' {
@@ -299,6 +297,12 @@ where
             self.expect(TokenKind::Atom(';'))?;
             Ok(expr_statement)
         }
+    }
+
+    fn ret(&mut self) -> Result<Statement, ParsingError> {
+        self.advance()?;
+        let expression = self.expression()?;
+        return Ok(Statement::Return(expression));
     }
 
     fn conditional(&mut self) -> Result<Statement, ParsingError> {

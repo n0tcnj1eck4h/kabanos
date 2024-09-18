@@ -50,6 +50,7 @@ pub enum Statement {
     Loop(Expression, Box<Statement>),
     Assignment(String, Expression),
     Expression(Expression),
+    Return(Expression),
 }
 
 #[derive(Debug, Clone)]

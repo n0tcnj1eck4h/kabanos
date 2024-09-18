@@ -41,6 +41,8 @@ fn main() {
                     function.codegen(&irbuiler).unwrap();
                 }
 
+                module.print_to_stderr();
+
                 // println!("{:#?}", &module);
             }
             Err(err) => println!("{:?}", err),

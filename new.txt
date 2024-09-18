@@ -46,3 +46,6 @@ fn main() -> i32 {
   }
 }
 
+fn poopshit(f32 a, f64 b) -> i64 {
+
+}

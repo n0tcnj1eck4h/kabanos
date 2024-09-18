@@ -53,6 +53,7 @@ pub enum Keyword {
     WHILE,
     STRUCT,
     LET,
+    RETURN,
 }
 
 impl PartialEq<Keyword> for Token {
@@ -79,6 +80,7 @@ impl FromStr for Keyword {
             "struct" => Ok(Keyword::STRUCT),
             "import" => Ok(Keyword::IMPORT),
             "while" => Ok(Keyword::WHILE),
+            "return" => Ok(Keyword::RETURN),
             _ => Err(()),
         };
     }
