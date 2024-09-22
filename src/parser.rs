@@ -42,7 +42,6 @@ where
         let next_token = self.next_token.take();
         match next_token {
             Some(token) => {
-                println!("{:?}", token);
                 self.token = token;
                 self.next_token = self.lexer.next();
             }

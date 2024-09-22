@@ -20,13 +20,18 @@
 #}
 
 # Function definiton
-fn main() -> i32 {
-  if 1 == 2 {
+fn main(i32 param) -> i32 {
+  if param == 2 {
     # stuff
   } else {
     # stuff
   }
 
+  if param == 4 {
+    # stuff
+  } else {
+    # stuff
+  }
   let namber = 0; 
   let exit: bool = false;
   let yes;

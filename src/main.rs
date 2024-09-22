@@ -6,7 +6,7 @@ mod parser;
 // mod symbol;
 mod token;
 
-use codegen::{IRBuilder, IRContext};
+use codegen::ModuleProvider;
 use inkwell::context::Context;
 use lexer::Lexer;
 use parser::Parser;
@@ -29,21 +29,10 @@ fn main() {
         match parser.module() {
             Ok(porgram) => {
                 let context = Context::create();
-                let builder = context.create_builder();
-                let module = context.create_module("tmp");
-                let irbuiler = IRContext {
-                    context: &context,
-                    builder: &builder,
-                    module: &module,
-                };
-
-                for function in porgram.function_definitions {
-                    function.codegen(&irbuiler).unwrap();
-                }
-
-                module.print_to_stderr();
-
-                // println!("{:#?}", &module);
+                porgram
+                    .build_module(&context, "tmp")
+                    .unwrap()
+                    .print_to_stderr();
             }
             Err(err) => println!("{:?}", err),
         }

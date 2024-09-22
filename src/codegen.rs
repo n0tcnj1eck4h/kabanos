@@ -1,20 +1,16 @@
 use core::panic;
+use std::collections::{HashMap, VecDeque};
 
 use inkwell::{
     builder::{Builder, BuilderError},
     context::Context,
     module::Module,
     types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::BasicValue,
+    values::{AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    IntPredicate,
 };
 
-use crate::ast;
-
-pub struct IRContext<'ctx, 'a> {
-    pub context: &'ctx Context,
-    pub builder: &'a Builder<'ctx>,
-    pub module: &'a Module<'ctx>,
-}
+use crate::{ast, token::Operator};
 
 #[derive(Debug)]
 pub enum IRBuilerError {
@@ -27,20 +23,11 @@ impl From<BuilderError> for IRBuilerError {
     }
 }
 
-pub type CodegenResult = std::result::Result<(), IRBuilerError>;
+pub type CodegenResult<T = ()> = std::result::Result<T, IRBuilerError>;
 
-pub trait IRBuilder {
-    fn codegen(&self, ctx: &IRContext) -> CodegenResult;
+pub trait ModuleProvider {
+    fn build_module<'a>(&self, context: &'a Context, name: &str) -> CodegenResult<Module<'a>>;
 }
-
-// impl IRBuilder<'a, 'b> for Vec<ast::FunctionDefinition> {
-//     fn codegen<'a, 'b> (&self, context: &'a IRContext<'b>) -> Result {
-//         for function in self {
-//             function.codegen(context)?
-//         }
-//         Ok(())
-//     }
-// }
 
 fn str_to_basictype<'a>(ctx: &'a Context, s: &str) -> BasicTypeEnum<'a> {
     match s {
@@ -54,89 +41,211 @@ fn str_to_basictype<'a>(ctx: &'a Context, s: &str) -> BasicTypeEnum<'a> {
         _ => panic!("Unknown type {}", s),
     }
 }
+impl ModuleProvider for ast::Module {
+    fn build_module<'a>(&self, context: &'a Context, name: &str) -> CodegenResult<Module<'a>> {
+        let builder = context.create_builder();
+        let module = context.create_module(name);
+        let mut symbol_table = SymbolTable::default();
 
-impl IRBuilder for ast::FunctionDefinition {
-    fn codegen(&self, ctx: &IRContext) -> CodegenResult {
-        let params: Vec<BasicMetadataTypeEnum> = self
-            .parameters
-            .iter()
-            .map(|p| str_to_basictype(ctx.context, &p.param_type).into())
-            .collect();
+        for fn_def in &self.function_definitions {
+            symbol_table.push_scope();
 
-        let fn_type = match &self.return_type {
-            Some(t) => {
-                let return_type = str_to_basictype(ctx.context, t);
-                return_type.fn_type(&params, false)
+            let mut params: Vec<BasicMetadataTypeEnum> = Vec::new();
+            for param in fn_def.parameters.iter() {
+                params.push(str_to_basictype(context, &param.param_type).into());
             }
-            None => ctx.context.void_type().fn_type(&params, false),
-        };
 
-        let function = ctx.module.add_function(&self.name, fn_type, None);
-        for (i, p) in self.parameters.iter().enumerate() {
-            let param = function.get_nth_param(i as u32).unwrap();
-            param.set_name(&p.name);
+            let fn_type = match &fn_def.return_type {
+                Some(t) => {
+                    let return_type = str_to_basictype(context, &t);
+                    return_type.fn_type(&params, false)
+                }
+                None => context.void_type().fn_type(&params, false),
+            };
+
+            let function = module.add_function(&fn_def.name, fn_type, None);
+            for (i, p) in fn_def.parameters.iter().enumerate() {
+                let param = function.get_nth_param(i as u32).unwrap();
+                param.set_name(&p.name);
+                symbol_table.push_value(&p.name, param.into());
+            }
+
+            let block = context.append_basic_block(function, "");
+            builder.position_at_end(block);
+            for statement in &fn_def.body {
+                statement.build_ir(context, &builder, &module, function, &mut symbol_table)?;
+            }
+
+            symbol_table.pop_scope();
         }
 
-        let block = ctx.context.append_basic_block(function, "entry");
-        ctx.builder.position_at_end(block);
-        for statement in &self.body {
-            statement.codegen(ctx)?;
-        }
-        // ctx.builder.build_return(Some(&param))?;
-        Ok(())
+        Ok(module)
     }
 }
 
-impl IRBuilder for ast::Statement {
-    fn codegen(&self, ctx: &IRContext) -> CodegenResult {
-        match self {
+#[derive(Default)]
+pub struct SymbolTable<'ctx> {
+    scope_stack: VecDeque<HashMap<String, BasicValueEnum<'ctx>>>,
+}
+
+impl<'ctx> SymbolTable<'ctx> {
+    pub fn push_value(&mut self, name: &str, value: BasicValueEnum<'ctx>) {
+        self.scope_stack
+            .back_mut()
+            .expect("There is no stack to put local var in")
+            .insert(name.into(), value);
+    }
+
+    pub fn push_scope(&mut self) {
+        self.scope_stack.push_back(Default::default());
+    }
+
+    pub fn pop_scope(&mut self) {
+        self.scope_stack.pop_back();
+    }
+
+    pub fn get_value(&self, name: &str) -> Option<BasicValueEnum<'ctx>> {
+        for scope in self.scope_stack.iter().rev() {
+            if let Some(value) = scope.get(name) {
+                return Some(*value);
+            }
+        }
+
+        // if let Some(value) = self.globals.get(name) {
+        //     return Some(*value);
+        // }
+        None
+    }
+}
+
+pub trait StatementBuilder {
+    fn build_ir<'ctx>(
+        &self,
+        context: &'ctx Context,
+        builder: &Builder<'ctx>,
+        module: &Module<'ctx>,
+        function: FunctionValue,
+        symbol_table: &mut SymbolTable,
+    ) -> CodegenResult;
+}
+
+impl StatementBuilder for ast::Statement {
+    fn build_ir<'ctx>(
+        &self,
+        context: &'ctx Context,
+        builder: &Builder<'ctx>,
+        module: &Module<'ctx>,
+        function: FunctionValue,
+        symbol_table: &mut SymbolTable,
+    ) -> CodegenResult {
+        match &self {
             &Self::LocalVar(ref name, ref datatype, ref value) => {
-                let datatype = str_to_basictype(ctx.context, datatype.as_deref().unwrap_or("i32"));
-                let local_var_ptr = ctx.builder.build_alloca(datatype, &name)?;
+                let datatype = str_to_basictype(context, datatype.as_deref().unwrap_or("i32"));
+                let local_var_ptr = builder.build_alloca(datatype, &name)?;
                 if let Some(expression) = value {
-                    // TODO: const boohoo
-                    let value = datatype.const_zero();
-                    ctx.builder.build_store(local_var_ptr, value)?;
+                    let value = expression.build_expression(context, builder, symbol_table)?;
+                    builder.build_store(local_var_ptr, value)?;
                 }
                 Ok(())
             }
-            &Self::Loop(condition, block) => {
-                let i32_type = ctx.context.i32_type();
-                let condition_value = i32_type.const_int(10, false); // Constant value for comparison
-                let zero_value = i32_type.const_int(0, false);
-                let condition = ctx.builder.build_int_compare(
-                    inkwell::IntPredicate::SGT,
-                    condition_value,
-                    zero_value,
-                    "if_cond",
-                );
+            &Self::Conditional(condition, block, else_block_) => {
+                let condition = condition.build_expression(context, builder, symbol_table)?;
 
-                // Step 6: Create the blocks for "then", "else", and "merge"
-                let then_block = ctx.context.append_basic_block(function, "then");
-                let else_block = ctx.context.append_basic_block(function, "else");
-                let merge_block = ctx.context.append_basic_block(function, "merge");
+                let then_block = context.append_basic_block(function, "");
+                let else_block = context.append_basic_block(function, "");
+                let merge_block = context.append_basic_block(function, "");
 
-                // Step 7: Build the conditional branch
-                builder.build_conditional_branch(condition, then_block, else_block);
+                builder.build_conditional_branch(
+                    condition.into_int_value(), // lol
+                    then_block,
+                    else_block,
+                )?;
 
-                // Step 8: Fill in the "then" block (assign 42 to the variable)
                 builder.position_at_end(then_block);
-                let then_value = i32_type.const_int(42, false);
-                builder.build_store(local_var_ptr, then_value);
-                builder.build_unconditional_branch(merge_block); // Jump to merge block
+                block.build_ir(context, builder, module, function, symbol_table)?;
+                builder.build_unconditional_branch(merge_block)?;
 
-                // Step 9: Fill in the "else" block (assign 0 to the variable)
                 builder.position_at_end(else_block);
-                let else_value = i32_type.const_int(0, false);
-                builder.build_store(local_var_ptr, else_value);
-                builder.build_unconditional_branch(merge_block); // Jump to merge block
+                if let Some(else_block_) = else_block_ {
+                    else_block_.build_ir(context, builder, module, function, symbol_table)?;
+                }
+                builder.build_unconditional_branch(merge_block)?;
 
-                // Step 10: Continue at the merge block
                 builder.position_at_end(merge_block);
-                let loaded_var = builder.build_load(local_var_ptr, "loaded_var");
                 Ok(())
             }
             _ => Ok(println!("Unhandled statement")),
+        }
+    }
+}
+
+pub trait ExpressionBuilder {
+    fn build_expression<'ctx>(
+        &self,
+        context: &'ctx Context,
+        builder: &Builder<'ctx>,
+        symbol_table: &SymbolTable<'ctx>,
+    ) -> CodegenResult<BasicValueEnum<'ctx>>;
+}
+
+impl ExpressionBuilder for ast::Expression {
+    fn build_expression<'ctx>(
+        &self,
+        context: &'ctx Context,
+        builder: &Builder<'ctx>,
+        symbol_table: &SymbolTable<'ctx>,
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
+        match self {
+            Self::Identifier(ident) => Ok(symbol_table
+                .get_value(ident)
+                .expect("Identifier not on stack")
+                .into()),
+            Self::BooleanLiteral(b) => Ok(context.bool_type().const_int(*b as u64, false).into()),
+            Self::IntegerLiteral(int) => {
+                Ok(context.i32_type().const_int(*int as u64, false).into())
+            }
+            Self::FloatingPointLiteral(f) => Ok(context.f32_type().const_float(*f).into()),
+            Self::BinaryOperation(l, op, r) => {
+                let l = l.build_expression(context, builder, symbol_table)?;
+                let r = r.build_expression(context, builder, symbol_table)?;
+                if let (BasicValueEnum::IntValue(l), BasicValueEnum::IntValue(r)) = (l, r) {
+                    return match *op {
+                        Operator::Add => Ok(builder.build_int_add(l, r, "")?.into()),
+                        Operator::Subtract => Ok(builder.build_int_sub(l, r, "")?.into()),
+                        Operator::Multiply => Ok(builder.build_int_mul(l, r, "")?.into()),
+                        Operator::Divide => Ok(builder.build_int_signed_div(l, r, "")?.into()),
+                        Operator::Equal => Ok(builder
+                            .build_int_compare(IntPredicate::EQ, l, r, "eq")?
+                            .into()),
+                        Operator::NotEqual => Ok(builder
+                            .build_int_compare(IntPredicate::NE, l, r, "")?
+                            .into()),
+                        Operator::Greater => Ok(builder
+                            .build_int_compare(IntPredicate::SGT, l, r, "")?
+                            .into()),
+                        Operator::GreaterOrEqual => Ok(builder
+                            .build_int_compare(IntPredicate::SGE, l, r, "")?
+                            .into()),
+                        Operator::Less => Ok(builder
+                            .build_int_compare(IntPredicate::SLT, l, r, "")?
+                            .into()),
+                        Operator::LessOrEqual => Ok(builder
+                            .build_int_compare(IntPredicate::SLE, l, r, "")?
+                            .into()),
+                        _ => panic!("Unhandled binary operator {:?}", op),
+                    };
+                }
+                panic!(
+                    "Binary operation between {:?} and {:?} is not yet implemented",
+                    l, r
+                );
+            }
+            Self::UnaryOperation(op, expr) => {
+                // TODO
+                Ok(expr.build_expression(context, builder, symbol_table)?)
+            }
+            Self::FunctionCall(_, _) => panic!("function calls are not supported yet"),
+            Self::StringLiteral(_) => panic!("string literals are not supported yet"),
         }
     }
 }
