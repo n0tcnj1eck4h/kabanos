@@ -153,7 +153,7 @@ where
                 self.advance()?;
                 if let TokenKind::Identifier(ref mut name) = self.token.kind {
                     parameters.push(Parameter {
-                        param_type,
+                        ty: param_type,
                         name: mem::take(name),
                     });
                     self.advance()?;

@@ -38,7 +38,7 @@ pub struct Import {
 
 #[derive(Debug)]
 pub struct Parameter {
-    pub param_type: String,
+    pub ty: String,
     pub name: String,
 }
 
@@ -54,7 +54,7 @@ pub enum Statement {
 
 #[derive(Debug, Clone)]
 pub enum Expression {
-    IntegerLiteral(i128),
+    IntegerLiteral(u64),
     FloatingPointLiteral(f64),
     StringLiteral(String),
     BooleanLiteral(bool),

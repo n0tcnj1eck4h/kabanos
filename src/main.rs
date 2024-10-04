@@ -2,7 +2,7 @@ mod ast;
 mod codegen;
 mod lexer;
 mod parser;
-// mod semantic;
+mod semantic;
 // mod symbol;
 mod token;
 
@@ -27,9 +27,10 @@ fn main() {
         let mut parser = Parser::new(tokens.into_iter()).unwrap();
 
         match parser.module() {
-            Ok(porgram) => {
+            Ok(module) => {
+                let module: semantic::Module = module.try_into().unwrap();
                 let context = Context::create();
-                porgram
+                module
                     .build_module(&context, "tmp")
                     .unwrap()
                     .print_to_stderr();

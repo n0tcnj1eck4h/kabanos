@@ -95,11 +95,11 @@ where
                 _ => self.token(TokenKind::Identifier(buf)),
             };
         } else if let '0'..='9' = ch {
-            let mut n = 0i128;
+            let mut n = 0u64;
             while let Some(ch) = self.ch {
                 if let Some(d) = ch.to_digit(10) {
                     n *= 10;
-                    n += d as i128;
+                    n += d as u64;
                     self.advance();
                 } else if ch == '.' {
                     self.advance();
@@ -147,33 +147,35 @@ where
         } else {
             self.advance();
             let ch2 = self.ch;
+
             #[rustfmt::skip]
             let op = match (ch, ch2) {
                 ('=', Some('=')) => { self.advance(); Some(Operator::Equal) }
                 ('<', Some('=')) => { self.advance(); Some(Operator::LessOrEqual) }
                 ('>', Some('=')) => { self.advance(); Some(Operator::GreaterOrEqual) }
-                ('>', Some('>')) => { self.advance(); Some(Operator::BinaryRight) }
-                ('<', Some('<')) => { self.advance(); Some(Operator::BinaryLeft) }
+                ('>', Some('>')) => { self.advance(); Some(Operator::RightShift) }
+                ('<', Some('<')) => { self.advance(); Some(Operator::LeftShift) }
                 ('!', Some('=')) => { self.advance(); Some(Operator::NotEqual) }
                 ('&', Some('&')) => { self.advance(); Some(Operator::LogicAnd) }
                 ('|', Some('|')) => { self.advance(); Some(Operator::LogicOr) }
                 (':', Some(':')) => { self.advance(); Some(Operator::ScopeResolution) }
                 ('-', Some('>')) => { self.advance(); Some(Operator::RightArrow) }
                 ('+', _) => Some(Operator::Add),
-                ('-', _) => Some(Operator::Subtract),
-                ('*', _) => Some(Operator::Multiply),
+                ('-', _) => Some(Operator::Minus),
+                ('*', _) => Some(Operator::Asterisk),
                 ('/', _) => Some(Operator::Divide),
                 ('%', _) => Some(Operator::Modulo),
-                ('&', _) => Some(Operator::BinaryAnd),
-                ('|', _) => Some(Operator::BinaryOr),
-                ('^', _) => Some(Operator::BinaryXor),
-                ('~', _) => Some(Operator::BinaryNot),
+                ('&', _) => Some(Operator::Ampersand),
+                ('|', _) => Some(Operator::Pipe),
+                ('^', _) => Some(Operator::Caret),
+                ('~', _) => Some(Operator::Tilde),
                 ('=', _) => Some(Operator::Assign),
                 ('<', _) => Some(Operator::Less),
                 ('>', _) => Some(Operator::Greater),
-                ('!', _) => Some(Operator::LogicNot),
+                ('!', _) => Some(Operator::Exclamation),
                 _ => None,
             };
+
             if let Some(op) = op {
                 return self.token(TokenKind::Operator(op));
             } else {

@@ -1,26 +1,31 @@
 use core::panic;
 use std::{
     collections::{HashMap, VecDeque},
-    ops::Deref,
+    fmt::Display,
 };
 
 use inkwell::{
     builder::{Builder, BuilderError},
     context::Context,
     module::Module,
-    types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::{AnyValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    types::{BasicType, BasicTypeEnum},
+    values::{BasicValueEnum, FunctionValue, IntValue, PointerValue},
     IntPredicate,
 };
 
-use crate::{
-    ast::{self, Expression},
-    token::Operator,
-};
+use crate::semantic::{self, operator::BinaryOperator, primitive::Primitive, LValue};
 
 #[derive(Debug)]
 pub enum IRBuilerError {
     LLVMBuilderError(BuilderError),
+}
+
+impl Display for IRBuilerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LLVMBuilderError(err) => write!(f, "{:?}", err),
+        }
+    }
 }
 
 impl From<BuilderError> for IRBuilerError {
@@ -35,35 +40,41 @@ pub trait ModuleProvider {
     fn build_module<'a>(&self, context: &'a Context, name: &str) -> CodegenResult<Module<'a>>;
 }
 
-fn str_to_basictype<'a>(ctx: &'a Context, s: &str) -> BasicTypeEnum<'a> {
-    match s {
-        "bool" => ctx.bool_type().into(),
-        "i8" => ctx.i8_type().into(),
-        "i16" => ctx.i16_type().into(),
-        "i32" => ctx.i32_type().into(),
-        "i64" => ctx.i64_type().into(),
-        "f32" => ctx.f32_type().into(),
-        "f64" => ctx.f64_type().into(),
-        _ => panic!("Unknown type {}", s),
+impl Primitive {
+    pub fn to_llvm_type<'ctx>(&self, context: &'ctx Context) -> BasicTypeEnum<'ctx> {
+        match self {
+            Primitive::Bool => context.bool_type().into(),
+            Primitive::I8 => context.i8_type().into(),
+            Primitive::I16 => context.i16_type().into(),
+            Primitive::I32 => context.i32_type().into(),
+            Primitive::I64 => context.i64_type().into(),
+            Primitive::U8 => context.i8_type().into(), // ermmm llvm?
+            Primitive::U16 => context.i16_type().into(),
+            Primitive::U32 => context.i32_type().into(),
+            Primitive::U64 => context.i64_type().into(),
+            Primitive::F32 => context.f32_type().into(),
+            Primitive::F64 => context.f64_type().into(),
+        }
     }
 }
-impl ModuleProvider for ast::Module {
+
+impl ModuleProvider for semantic::Module {
     fn build_module<'a>(&self, context: &'a Context, name: &str) -> CodegenResult<Module<'a>> {
         let builder = context.create_builder();
         let module = context.create_module(name);
         let mut symbol_table = SymbolTable::default();
 
-        for fn_def in &self.function_definitions {
+        for fn_def in &self.functions {
             symbol_table.push_scope();
 
-            let mut params: Vec<BasicMetadataTypeEnum> = Vec::new();
-            for param in fn_def.parameters.iter() {
-                params.push(str_to_basictype(context, &param.param_type).into());
+            let mut params = Vec::new();
+            for param in fn_def.params.iter() {
+                params.push(param.ty.to_llvm_type(context).into());
             }
 
-            let fn_type = match &fn_def.return_type {
+            let fn_type = match &fn_def.ty {
                 Some(t) => {
-                    let return_type = str_to_basictype(context, &t);
+                    let return_type = t.to_llvm_type(context);
                     return_type.fn_type(&params, false)
                 }
                 None => context.void_type().fn_type(&params, false),
@@ -74,7 +85,7 @@ impl ModuleProvider for ast::Module {
             let block = context.append_basic_block(function, "");
             builder.position_at_end(block);
 
-            for (i, p) in fn_def.parameters.iter().enumerate() {
+            for (i, p) in fn_def.params.iter().enumerate() {
                 let param = function.get_nth_param(i as u32).unwrap();
                 param.set_name(&p.name);
 
@@ -151,7 +162,7 @@ pub trait StatementBuilder {
     ) -> CodegenResult;
 }
 
-impl StatementBuilder for ast::Statement {
+impl StatementBuilder for semantic::Statement {
     fn build_statement<'ctx>(
         &self,
         context: &'ctx Context,
@@ -161,12 +172,7 @@ impl StatementBuilder for ast::Statement {
     ) -> CodegenResult {
         match self {
             Self::LocalVar(ref name, ref datatype, ref value) => {
-                let ty = str_to_basictype(
-                    context,
-                    datatype
-                        .as_deref()
-                        .expect("implicit type not supported yet"),
-                );
+                let ty = datatype.to_llvm_type(context);
 
                 let ptr = builder.build_alloca(ty, &name)?;
                 if let Some(expression) = value {
@@ -253,7 +259,7 @@ pub trait ExpressionBuilder {
     ) -> CodegenResult<BasicValueEnum<'ctx>>;
 }
 
-impl ExpressionBuilder for ast::Expression {
+impl ExpressionBuilder for semantic::Expression {
     fn build_expression<'ctx>(
         &self,
         context: &'ctx Context,
@@ -261,33 +267,31 @@ impl ExpressionBuilder for ast::Expression {
         symbol_table: &SymbolTable<'ctx>,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
         match self {
-            Self::Identifier(identifier) => {
+            Self::Assignment(LValue::Identifier(ident), expr) => {
+                let r = expr.build_expression(context, builder, symbol_table)?;
+                let symbol = symbol_table.get_value(&ident).expect("lval is undefined");
+                if symbol.ty != r.get_type() {
+                    panic!("assignemtn type mismatch")
+                }
+                builder.build_store(symbol.ptr, r)?;
+                return Ok(builder.build_load(symbol.ty, symbol.ptr, ident)?);
+            }
+            Self::Assignment(..) => unimplemented!(),
+            Self::LValue(semantic::LValue::Identifier(identifier)) => {
                 let symbol = symbol_table
                     .get_value(identifier)
                     .expect(&format!("Identifier {} not on stack", identifier));
                 Ok(builder.build_load(symbol.ty, symbol.ptr, &identifier)?)
             }
+            Self::LValue(_) => unimplemented!(),
             Self::BooleanLiteral(b) => Ok(context.bool_type().const_int(*b as u64, false).into()),
             Self::IntegerLiteral(int) => {
                 Ok(context.i32_type().const_int(*int as u64, false).into())
             }
-            Self::FloatingPointLiteral(f) => Ok(context.f32_type().const_float(*f).into()),
+            Self::FloatLiteral(f) => Ok(context.f32_type().const_float(*f).into()),
             Self::BinaryOperation(lexpr, op, rexpr) => {
                 let mut l = lexpr.build_expression(context, builder, symbol_table)?;
-                let mut r = rexpr.build_expression(context, builder, symbol_table)?;
-
-                if *op == Operator::Assign {
-                    if let &Expression::Identifier(ref ident) = lexpr.deref() {
-                        let symbol = symbol_table.get_value(&ident).expect("lval is undefined");
-                        if symbol.ty != r.get_type() {
-                            panic!("assignemtn type mismatch")
-                        }
-                        builder.build_store(symbol.ptr, r)?;
-                        return Ok(builder.build_load(symbol.ty, symbol.ptr, ident)?);
-                    } else {
-                        panic!("lvalue of the assignment operator must be an identifier");
-                    }
-                }
+                let r = rexpr.build_expression(context, builder, symbol_table)?;
 
                 if let (BasicValueEnum::IntValue(l_), BasicValueEnum::FloatValue(r)) = (l, r) {
                     l = builder
@@ -304,33 +308,44 @@ impl ExpressionBuilder for ast::Expression {
                     l, r
                 );
             }
-            Self::UnaryOperation(op, expr) => {
+            Self::UnaryOperation(_op, expr) => {
                 // TODO
                 Ok(expr.build_expression(context, builder, symbol_table)?)
             }
             Self::FunctionCall(_, _) => panic!("function calls are not supported yet"),
-            Self::StringLiteral(_) => panic!("string literals are not supported yet"),
+            // Self::StringLiteral(_) => panic!("string literals are not supported yet"),
         }
     }
 }
 
 fn build_int_binop<'ctx>(
     builder: &Builder<'ctx>,
-    op: Operator,
+    op: BinaryOperator,
     l: IntValue<'ctx>,
     r: IntValue<'ctx>,
 ) -> CodegenResult<IntValue<'ctx>> {
     return match op {
-        Operator::Add => Ok(builder.build_int_add(l, r, "add")?),
-        Operator::Subtract => Ok(builder.build_int_sub(l, r, "sub")?),
-        Operator::Multiply => Ok(builder.build_int_mul(l, r, "mul")?),
-        Operator::Divide => Ok(builder.build_int_signed_div(l, r, "div")?),
-        Operator::Equal => Ok(builder.build_int_compare(IntPredicate::EQ, l, r, "eq")?),
-        Operator::NotEqual => Ok(builder.build_int_compare(IntPredicate::NE, l, r, "neq")?),
-        Operator::Greater => Ok(builder.build_int_compare(IntPredicate::SGT, l, r, "gt")?),
-        Operator::GreaterOrEqual => Ok(builder.build_int_compare(IntPredicate::SGE, l, r, "ge")?),
-        Operator::Less => Ok(builder.build_int_compare(IntPredicate::SLT, l, r, "slt")?),
-        Operator::LessOrEqual => Ok(builder.build_int_compare(IntPredicate::SLE, l, r, "le")?),
-        _ => panic!("Unhandled binary operator {:?}", op),
+        BinaryOperator::Add => Ok(builder.build_int_add(l, r, "add")?),
+        BinaryOperator::Subtract => Ok(builder.build_int_sub(l, r, "sub")?),
+        BinaryOperator::Multiply => Ok(builder.build_int_mul(l, r, "mul")?),
+        BinaryOperator::Divide => Ok(builder.build_int_signed_div(l, r, "div")?),
+        BinaryOperator::Equal => Ok(builder.build_int_compare(IntPredicate::EQ, l, r, "eq")?),
+        BinaryOperator::NotEqual => Ok(builder.build_int_compare(IntPredicate::NE, l, r, "neq")?),
+        BinaryOperator::Greater => Ok(builder.build_int_compare(IntPredicate::SGT, l, r, "gt")?),
+        BinaryOperator::Less => Ok(builder.build_int_compare(IntPredicate::SLT, l, r, "slt")?),
+        BinaryOperator::Modulo => Ok(builder.build_int_signed_rem(l, r, "srem")?),
+        BinaryOperator::BitAnd => Ok(builder.build_and(l, r, "and")?),
+        BinaryOperator::BitOr => Ok(builder.build_or(l, r, "or")?),
+        BinaryOperator::BitXor => Ok(builder.build_xor(l, r, "xor")?),
+        BinaryOperator::BitLeft => Ok(builder.build_left_shift(l, r, "lshift")?),
+        BinaryOperator::BitRight => Ok(builder.build_right_shift(l, r, false, "rshift")?),
+        BinaryOperator::LogicAnd => Ok(builder.build_and(l, r, "and")?),
+        BinaryOperator::LogicOr => Ok(builder.build_or(l, r, "or")?),
+        BinaryOperator::GreaterOrEqual => {
+            Ok(builder.build_int_compare(IntPredicate::SGE, l, r, "ge")?)
+        }
+        BinaryOperator::LessOrEqual => {
+            Ok(builder.build_int_compare(IntPredicate::SLE, l, r, "le")?)
+        }
     };
 }
