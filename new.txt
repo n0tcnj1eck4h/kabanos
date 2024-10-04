@@ -32,21 +32,21 @@ fn main(i32 param) -> i32 {
   } else {
     # stuff
   }
-  let namber = 0; 
-  let exit: bool = false;
-  let yes;
 
-  yes = namber;
+  let namber: i32 = 0; 
+  let exit: i32= 1;
+  let yes: i32;
 
-  foo+bar;
-  test();
-  xiexie(1+gugu());
+  # please implement expression statements thanks
+  #yes = namber;
+  #foo+bar;
+  #test();
+  #xiexie(1+gugu());
 
-  while exit {
-    # stuff
-    #i32 namber = extern_function_name();
+  while param == 1 {
+    let namer: i32;
     if namer == 1 {
-      exit = true;
+      exit + true;
     }
   }
 }

@@ -48,7 +48,6 @@ pub enum Statement {
     Conditional(Expression, Box<Statement>, Option<Box<Statement>>),
     LocalVar(String, Option<String>, Option<Expression>),
     Loop(Expression, Box<Statement>),
-    Assignment(String, Expression),
     Expression(Expression),
     Return(Expression),
 }
