@@ -6,7 +6,7 @@ mod semantic;
 // mod symbol;
 mod token;
 
-use codegen::ModuleProvider;
+// use codegen::ModuleProvider;
 use inkwell::context::Context;
 use lexer::Lexer;
 use parser::Parser;
@@ -33,7 +33,8 @@ fn main() {
                 module
                     .build_module(&context, "tmp")
                     .unwrap()
-                    .print_to_stderr();
+                    .print_to_file("out.ll")
+                    .unwrap();
             }
             Err(err) => println!("{:?}", err),
         }

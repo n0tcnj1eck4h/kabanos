@@ -1,3 +1,207 @@
+fn main() -> i32 {
+  let n: i32 = 15;
+  #let i: i32 = 0;
+  #let a: i32 = 0;
+  #let b: i32 = 1;
+
+  #while i < n {
+  #  let temp: i32 = a;
+  #  a = b;
+  #  b = temp + a;
+  #  i = i + 1;
+  #}
+
+  #return a;
+    if (n == 1) {
+        return 1;
+    }
+    else if (n == 2) {
+        return 1;
+    }
+    else if (n == 3) {
+        return 2;
+    }
+    else if (n == 4) {
+        return 3;
+    }
+    else if (n == 5) {
+        return 5;
+    }
+    else if (n == 6) {
+        return 8;
+    }
+    else if (n == 7) {
+        return 13;
+    }
+    else if (n == 8) {
+        return 21;
+    }
+    else if (n == 9) {
+        return 34;
+    }
+    else if (n == 10) {
+        return 55;
+    }
+    else if (n == 11) {
+        return 89;
+    }
+    else if (n == 12) {
+        return 144;
+    }
+    else if (n == 13) {
+        return 233;
+    }
+    else if (n == 14) {
+        return 377;
+    }
+    else if (n == 15) {
+        return 610;
+    }
+    else if (n == 16) {
+        return 987;
+    }
+    else if (n == 17) {
+        return 1597;
+    }
+    else if (n == 18) {
+        return 2584;
+    }
+    else if (n == 19) {
+        return 4181;
+    }
+    else if (n == 20) {
+        return 6765;
+    }
+    else if (n == 21) {
+        return 10946;
+    }
+    else if (n == 22) {
+        return 17711;
+    }
+    else if (n == 23) {
+        return 28657;
+    }
+    else if (n == 24) {
+        return 46368;
+    }
+    else if (n == 25) {
+        return 75025;
+    }
+    else if (n == 26) {
+        return 121393;
+    }
+    else if (n == 27) {
+        return 196418;
+    }
+    else if (n == 28) {
+        return 317811;
+    }
+    else if (n == 29) {
+        return 514229;
+    }
+    else if (n == 30) {
+        return 832040;
+    }
+    else if (n == 31) {
+        return 1346269;
+    }
+    else if (n == 32) {
+        return 2178309;
+    }
+    else if (n == 33) {
+        return 3524578;
+    }
+    else if (n == 34) {
+        return 5702887;
+    }
+    else if (n == 35) {
+        return 9227465;
+    }
+    else if (n == 36) {
+        return 14930352;
+    }
+    else if (n == 37) {
+        return 24157817;
+    }
+    else if (n == 38) {
+        return 39088169;
+    }
+    else if (n == 39) {
+        return 63245986;
+    }
+    else if (n == 40) {
+        return 102334155;
+    }
+    else if (n == 41) {
+        return 165580141;
+    }
+    else if (n == 42) {
+        return 267914296;
+    }
+    else if (n == 43) {
+        return 433494437;
+    }
+    else if (n == 44) {
+        return 701408733;
+    }
+    else if (n == 45) {
+        return 1134903170;
+    }
+    else if (n == 46) {
+        return 1836311903;
+    }
+    else if (n == 47) {
+        return 2971215073;
+    }
+    else if (n == 48) {
+        return 4807526976;
+    }
+    else if (n == 49) {
+        return 7778742049;
+    }
+    else if (n == 50) {
+        return 12586269025;
+    }
+
+    return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+fn fibonacci(i32 n) -> i32 {
+  let i: i32 = 0;
+
+  let a: i32 = 1;
+  let b: i32 = 2;
+
+  while i < n {
+    let temp: i32 = a;
+    a = b;
+    b = temp + a;
+    i = i + 1;
+  }
+
+  return b;
+}
+
 # Imports
 # import module_name::symbol;
 # import module_name::symbol;
@@ -18,39 +222,3 @@
 #
 #struct Empty {
 #}
-
-# Function definiton
-fn main(i32 param) -> i32 {
-  if param == 2 {
-    # stuff
-  } else {
-    # stuff
-  }
-
-  if param == 4 {
-    # stuff
-  } else {
-    # stuff
-  }
-
-  let namber: i32 = 0; 
-  let exit: i32= 1;
-  let yes: i32;
-
-  # please implement expression statements thanks
-  #yes = namber;
-  #foo+bar;
-  #test();
-  #xiexie(1+gugu());
-
-  while param == 1 {
-    let namer: i32;
-    if namer == 1 {
-      exit + true;
-    }
-  }
-}
-
-fn poopshit(f32 a, f64 b) -> i64 {
-
-}

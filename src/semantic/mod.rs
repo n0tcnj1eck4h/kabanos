@@ -1,12 +1,14 @@
-pub mod error;
-pub mod operator;
-pub mod primitive;
+mod error;
+mod operator;
+mod primitive;
 
-use error::SemanticError;
-use operator::{BinaryOperator, UnaryOperator};
-use primitive::Primitive;
+use std::str::FromStr;
 
-use crate::ast;
+pub use error::*;
+pub use operator::*;
+pub use primitive::*;
+
+use crate::{ast, token::Operator};
 
 #[derive(Debug)]
 pub struct Module {
@@ -38,7 +40,29 @@ pub struct FunctionDefinition {
 impl TryFrom<ast::FunctionDefinition> for FunctionDefinition {
     type Error = SemanticError;
     fn try_from(value: ast::FunctionDefinition) -> Result<Self, Self::Error> {
-        todo!()
+        let mut body = Vec::new();
+        for statement in value.body {
+            let statement = statement.try_into()?;
+            body.push(statement);
+        }
+
+        let mut params = Vec::new();
+        for param in value.parameters {
+            let param = param.try_into()?;
+            params.push(param);
+        }
+
+        let ty = value
+            .return_type
+            .map(|ty| FromStr::from_str(&ty))
+            .transpose()?;
+
+        Ok(Self {
+            name: value.name,
+            body,
+            params,
+            ty,
+        })
     }
 }
 
@@ -60,8 +84,8 @@ impl TryFrom<ast::Parameter> for Parameter {
 #[derive(Debug, Clone)]
 pub enum LValue {
     Identifier(String),
-    StructField,
-    PointerDereference,
+    // StructField,
+    // PointerDereference,
 }
 
 impl TryFrom<ast::Expression> for LValue {
@@ -142,6 +166,30 @@ pub enum Expression {
 impl TryFrom<ast::Expression> for Expression {
     type Error = SemanticError;
     fn try_from(value: ast::Expression) -> Result<Self, Self::Error> {
-        todo!()
+        match value {
+            ast::Expression::Identifier(ident) => Ok(Self::LValue(LValue::Identifier(ident))),
+            ast::Expression::FunctionCall(_, _) => unimplemented!(),
+            ast::Expression::StringLiteral(_) => unimplemented!(),
+            ast::Expression::IntegerLiteral(int) => Ok(Self::IntegerLiteral(int)),
+            ast::Expression::BooleanLiteral(bool) => Ok(Self::BooleanLiteral(bool)),
+            ast::Expression::FloatingPointLiteral(float) => Ok(Self::FloatLiteral(float)),
+            ast::Expression::UnaryOperation(op, expr) => {
+                let op = op.try_into()?;
+                let expr = Box::new((*expr).try_into()?);
+                Ok(Self::UnaryOperation(op, expr))
+            }
+            ast::Expression::BinaryOperation(l, op, r) => {
+                if op == Operator::Assign {
+                    let l = (*l).try_into()?;
+                    let r = Box::new((*r).try_into()?);
+                    Ok(Self::Assignment(l, r))
+                } else {
+                    let op = op.try_into()?;
+                    let l = Box::new((*l).try_into()?);
+                    let r = Box::new((*r).try_into()?);
+                    Ok(Self::BinaryOperation(l, op, r))
+                }
+            }
+        }
     }
 }

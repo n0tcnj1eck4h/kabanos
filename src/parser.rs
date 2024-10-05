@@ -301,6 +301,7 @@ where
     fn ret(&mut self) -> Result<Statement, ParsingError> {
         self.advance()?;
         let expression = self.expression()?;
+        self.expect(TokenKind::Atom(';'))?;
         return Ok(Statement::Return(expression));
     }
 

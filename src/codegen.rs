@@ -13,7 +13,7 @@ use inkwell::{
     IntPredicate,
 };
 
-use crate::semantic::{self, operator::BinaryOperator, primitive::Primitive, LValue};
+use crate::semantic::{self, BinaryOperator, LValue, Primitive};
 
 #[derive(Debug)]
 pub enum IRBuilerError {
@@ -36,10 +36,6 @@ impl From<BuilderError> for IRBuilerError {
 
 pub type CodegenResult<T = ()> = std::result::Result<T, IRBuilerError>;
 
-pub trait ModuleProvider {
-    fn build_module<'a>(&self, context: &'a Context, name: &str) -> CodegenResult<Module<'a>>;
-}
-
 impl Primitive {
     pub fn to_llvm_type<'ctx>(&self, context: &'ctx Context) -> BasicTypeEnum<'ctx> {
         match self {
@@ -58,8 +54,8 @@ impl Primitive {
     }
 }
 
-impl ModuleProvider for semantic::Module {
-    fn build_module<'a>(&self, context: &'a Context, name: &str) -> CodegenResult<Module<'a>> {
+impl semantic::Module {
+    pub fn build_module<'a>(&self, context: &'a Context, name: &str) -> CodegenResult<Module<'a>> {
         let builder = context.create_builder();
         let module = context.create_module(name);
         let mut symbol_table = SymbolTable::default();
@@ -82,7 +78,7 @@ impl ModuleProvider for semantic::Module {
 
             let function = module.add_function(&fn_def.name, fn_type, None);
 
-            let block = context.append_basic_block(function, "");
+            let block = context.append_basic_block(function, "entry");
             builder.position_at_end(block);
 
             for (i, p) in fn_def.params.iter().enumerate() {
@@ -152,17 +148,7 @@ impl<'ctx> SymbolTable<'ctx> {
     }
 }
 
-pub trait StatementBuilder {
-    fn build_statement<'ctx>(
-        &self,
-        context: &'ctx Context,
-        builder: &Builder<'ctx>,
-        function: FunctionValue,
-        symbol_table: &mut SymbolTable<'ctx>,
-    ) -> CodegenResult;
-}
-
-impl StatementBuilder for semantic::Statement {
+impl semantic::Statement {
     fn build_statement<'ctx>(
         &self,
         context: &'ctx Context,
@@ -212,21 +198,25 @@ impl StatementBuilder for semantic::Statement {
                 Ok(())
             }
             Self::Loop(condition, body) => {
-                let condition = condition.build_expression(context, builder, symbol_table)?;
                 let loop_block = context.append_basic_block(function, "loop");
-                let merge_block = context.append_basic_block(function, "continue");
-
-                builder.position_at_end(loop_block);
-                builder.build_conditional_branch(
-                    condition.into_int_value(), // lol
-                    loop_block,
-                    merge_block,
-                )?;
-
-                body.build_statement(context, builder, function, symbol_table)?;
+                let body_block = context.append_basic_block(function, "body");
+                let continue_block = context.append_basic_block(function, "continue");
 
                 builder.build_unconditional_branch(loop_block)?;
-                builder.position_at_end(merge_block);
+
+                builder.position_at_end(loop_block);
+                let condition = condition.build_expression(context, builder, symbol_table)?;
+                builder.build_conditional_branch(
+                    condition.into_int_value(), // lol
+                    body_block,
+                    continue_block,
+                )?;
+
+                builder.position_at_end(body_block);
+                body.build_statement(context, builder, function, symbol_table)?;
+                builder.build_unconditional_branch(loop_block)?;
+
+                builder.position_at_end(continue_block);
                 Ok(())
             }
             Self::Block(statements) => {
@@ -250,16 +240,7 @@ impl StatementBuilder for semantic::Statement {
     }
 }
 
-pub trait ExpressionBuilder {
-    fn build_expression<'ctx>(
-        &self,
-        context: &'ctx Context,
-        builder: &Builder<'ctx>,
-        symbol_table: &SymbolTable<'ctx>,
-    ) -> CodegenResult<BasicValueEnum<'ctx>>;
-}
-
-impl ExpressionBuilder for semantic::Expression {
+impl semantic::Expression {
     fn build_expression<'ctx>(
         &self,
         context: &'ctx Context,
@@ -276,14 +257,12 @@ impl ExpressionBuilder for semantic::Expression {
                 builder.build_store(symbol.ptr, r)?;
                 return Ok(builder.build_load(symbol.ty, symbol.ptr, ident)?);
             }
-            Self::Assignment(..) => unimplemented!(),
-            Self::LValue(semantic::LValue::Identifier(identifier)) => {
+            Self::LValue(LValue::Identifier(identifier)) => {
                 let symbol = symbol_table
                     .get_value(identifier)
                     .expect(&format!("Identifier {} not on stack", identifier));
                 Ok(builder.build_load(symbol.ty, symbol.ptr, &identifier)?)
             }
-            Self::LValue(_) => unimplemented!(),
             Self::BooleanLiteral(b) => Ok(context.bool_type().const_int(*b as u64, false).into()),
             Self::IntegerLiteral(int) => {
                 Ok(context.i32_type().const_int(*int as u64, false).into())
