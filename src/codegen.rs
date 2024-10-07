@@ -63,25 +63,14 @@ impl semantic::Module {
         for fn_def in &self.functions {
             symbol_table.push_scope();
 
-            let mut params = Vec::new();
-            for param in fn_def.params.iter() {
-                params.push(param.ty.to_llvm_type(context).into());
-            }
-
-            let fn_type = match &fn_def.ty {
-                Some(t) => {
-                    let return_type = t.to_llvm_type(context);
-                    return_type.fn_type(&params, false)
-                }
-                None => context.void_type().fn_type(&params, false),
-            };
-
-            let function = module.add_function(&fn_def.name, fn_type, None);
+            let function = fn_def
+                .declaration
+                .build_function_prototype(context, &module);
 
             let block = context.append_basic_block(function, "entry");
             builder.position_at_end(block);
 
-            for (i, p) in fn_def.params.iter().enumerate() {
+            for (i, p) in fn_def.declaration.params.iter().enumerate() {
                 let param = function.get_nth_param(i as u32).unwrap();
                 param.set_name(&p.name);
 
@@ -104,6 +93,29 @@ impl semantic::Module {
         }
 
         Ok(module)
+    }
+}
+
+impl semantic::FunctionDeclaration {
+    fn build_function_prototype<'ctx>(
+        &self,
+        context: &'ctx Context,
+        module: &Module<'ctx>,
+    ) -> FunctionValue<'ctx> {
+        let mut params = Vec::new();
+        for param in self.params.iter() {
+            params.push(param.ty.to_llvm_type(context).into());
+        }
+
+        let fn_type = match self.ty {
+            Some(t) => {
+                let return_type = t.to_llvm_type(context);
+                return_type.fn_type(&params, false)
+            }
+            None => context.void_type().fn_type(&params, false),
+        };
+
+        module.add_function(&self.name, fn_type, None)
     }
 }
 

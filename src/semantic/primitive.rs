@@ -32,7 +32,7 @@ impl FromStr for Primitive {
             "u64" => Ok(Self::U64),
             "f32" => Ok(Self::F32),
             "f64" => Ok(Self::F64),
-            _ => Err(SemanticError::NotAPrimitive(s.to_string())),
+            _ => Err(SemanticError::NotPrimitive(s.to_string())),
         }
     }
 }

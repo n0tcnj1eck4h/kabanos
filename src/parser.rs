@@ -79,7 +79,7 @@ where
         while self.next_token.is_some() {
             match self.token.kind {
                 TokenKind::Keyword(Keyword::FUNCTION) => {
-                    fn_defs.push(self.fn_def()?);
+                    fn_defs.push(self.function_definition()?);
                 }
                 TokenKind::Keyword(Keyword::GLOBAL) => globals.push(self.global_var()?),
                 TokenKind::Keyword(Keyword::EXTERN) => {
@@ -169,30 +169,35 @@ where
         }
     }
 
-    fn fn_def(&mut self) -> Result<FunctionDefinition, ParsingError> {
+    fn function_definition(&mut self) -> Result<FunctionDefinition, ParsingError> {
         self.advance()?;
-        if let TokenKind::Identifier(ref function_name) = self.token.kind {
-            let function_name = function_name.clone();
+        if let TokenKind::Identifier(ref mut function_name) = self.token.kind {
+            let name = mem::take(function_name);
+
             self.advance()?;
             let parameters = self.param_list()?;
 
             let mut return_type = None;
             if self.token == Operator::RightArrow {
                 self.advance()?;
-                if let TokenKind::Identifier(ref ret_type) = self.token.kind {
-                    return_type = Some(ret_type.clone());
+                if let TokenKind::Identifier(ref mut ret_type) = self.token.kind {
+                    return_type = Some(mem::take(ret_type));
                     self.advance()?;
                 }
             }
 
+            let calling_convention = None;
+
+            let declaration = FunctionDeclaration {
+                name,
+                parameters,
+                return_type,
+                calling_convention,
+            };
+
             if self.token == '{' {
                 let body = self.fn_body()?;
-                return Ok(FunctionDefinition {
-                    name: function_name,
-                    body,
-                    parameters,
-                    return_type,
-                });
+                return Ok(FunctionDefinition { declaration, body });
             }
         }
 
@@ -450,6 +455,7 @@ where
                 let parameters = self.param_list()?;
                 let mut return_type = None;
                 if self.token == Operator::RightArrow {
+                    self.advance()?;
                     if let TokenKind::Identifier(ref ret_type) = self.token.kind {
                         return_type = Some(ret_type.clone());
                         self.advance()?;

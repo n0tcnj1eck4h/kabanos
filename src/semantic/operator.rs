@@ -46,7 +46,7 @@ impl TryFrom<Operator> for BinaryOperator {
             Operator::RightShift => Ok(Self::BitRight),
             Operator::LogicAnd => Ok(Self::LogicAnd),
             Operator::LogicOr => Ok(Self::LogicOr),
-            _ => Err(SemanticError::NotABinOp(value)),
+            _ => Err(SemanticError::NotBinOp(value)),
         }
     }
 }
@@ -65,7 +65,7 @@ impl TryFrom<Operator> for UnaryOperator {
             Operator::Minus => Ok(Self::Negative),
             Operator::Exclamation => Ok(Self::LogicNot),
             Operator::Tilde => Ok(Self::BitNot),
-            _ => Err(SemanticError::NotAUnaryOp(value)),
+            _ => Err(SemanticError::NotUnaryOp(value)),
         }
     }
 }

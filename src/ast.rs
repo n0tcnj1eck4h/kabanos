@@ -10,19 +10,17 @@ pub struct Module {
 }
 
 #[derive(Debug)]
-pub struct FunctionDefinition {
-    pub name: String,
-    pub body: Vec<Statement>,
-    pub parameters: Vec<Parameter>,
-    pub return_type: Option<String>,
-}
-
-#[derive(Debug)]
 pub struct FunctionDeclaration {
     pub name: String,
     pub parameters: Vec<Parameter>,
     pub calling_convention: Option<String>,
     pub return_type: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct FunctionDefinition {
+    pub declaration: FunctionDeclaration,
+    pub body: Vec<Statement>,
 }
 
 #[derive(Debug)]

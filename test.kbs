@@ -1,0 +1,53 @@
+extern extern_function_name() -> i32;
+
+fn main() -> i32 {
+  let n: i32 = 15;
+  let i: i32 = 0;
+  let a: i32 = 0;
+  let b: i32 = 1;
+
+  while i < n {
+    let temp: i32 = a;
+    a = b;
+    b = temp + a;
+    i = i + 1;
+  }
+
+  return a;
+}
+
+fn fibonacci(i32 n) -> i32 {
+  let i: i32 = 0;
+
+  let a: i32 = 1;
+  let b: i32 = 2;
+
+  while i < n {
+    let temp: i32 = a;
+    a = b;
+    b = temp + a;
+    i = i + 1;
+  }
+
+  return b;
+}
+
+# Imports
+# import module_name::symbol;
+# import module_name::symbol;
+# import module_name::symbol;
+# import module_name::symbol;
+
+# Extern declaration
+
+# Global bariable 
+#global u32 my_unsigned_global = 0; DO THIS LATER
+#global u32 my_unsigned_global_without_a_value;
+#
+#struct MyType {
+# u32 field1;
+# i8 field2;
+#}
+#
+#struct Empty {
+#}
