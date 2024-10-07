@@ -55,7 +55,9 @@ where
             self.advance()?;
             Ok(())
         } else {
-            Err(ParsingError::UnexpectedTokenError(self.token.clone()))
+            Err(ParsingError::UnexpectedTokenError(mem::take(
+                &mut self.token,
+            )))
         }
     }
 
@@ -107,16 +109,16 @@ where
 
     fn structure(&mut self) -> Result<Composite, ParsingError> {
         self.advance()?;
-        if let TokenKind::Identifier(ref type_name) = self.token.kind {
-            let type_name = type_name.clone();
+        if let TokenKind::Identifier(ref mut type_name) = self.token.kind {
+            let type_name = mem::take(type_name);
             let mut fields = Vec::new();
             self.advance()?;
             self.expect(TokenKind::Atom('{'))?;
-            while let TokenKind::Identifier(ref field_type) = self.token.kind {
-                let field_type = field_type.clone();
+            while let TokenKind::Identifier(ref mut field_type) = self.token.kind {
+                let field_type = mem::take(field_type);
                 self.advance()?;
-                if let TokenKind::Identifier(ref field_name) = self.token.kind {
-                    let field_name = field_name.clone();
+                if let TokenKind::Identifier(ref mut field_name) = self.token.kind {
+                    let field_name = mem::take(field_name);
                     fields.push(CompositeField {
                         name: field_name,
                         datatype: field_type,
@@ -208,8 +210,8 @@ where
         self.advance()?;
         let mut path = Vec::new();
         loop {
-            if let TokenKind::Identifier(ref path_segment) = self.token.kind {
-                path.push(path_segment.clone());
+            if let TokenKind::Identifier(ref mut path_segment) = self.token.kind {
+                path.push(mem::take(path_segment));
                 self.advance()?;
             } else {
                 return self.error();
@@ -239,25 +241,29 @@ where
 
     pub fn local_let(&mut self) -> Result<Statement, ParsingError> {
         self.advance()?;
-        if let TokenKind::Identifier(ref variable_name) = self.token.kind {
-            let variable_name = variable_name.clone();
-            let mut explicit_type = None;
+        if let TokenKind::Identifier(ref mut variable_name) = self.token.kind {
+            let variable_name = mem::take(variable_name);
             self.advance()?;
-            if self.token == ':' {
+            let explicit_type = if self.token == ':' {
                 self.advance()?;
-                if let TokenKind::Identifier(ref identifier) = self.token.kind {
-                    explicit_type = Some(identifier.clone());
+                if let TokenKind::Identifier(ref mut identifier) = self.token.kind {
+                    let explicit_type = Some(mem::take(identifier));
                     self.advance()?;
+                    explicit_type
                 } else {
                     return self.error();
                 }
-            }
+            } else {
+                None
+            };
 
-            let mut initial_value = None;
-            if self.token == Operator::Assign {
+            let initial_value = if self.token == Operator::Assign {
                 self.advance()?;
-                initial_value = Some(self.expression()?);
-            }
+                Some(self.expression()?)
+            } else {
+                None
+            };
+
             self.expect(TokenKind::Atom(';'))?;
             return Ok(Statement::LocalVar(
                 variable_name,
@@ -271,11 +277,11 @@ where
 
     pub fn global_var(&mut self) -> Result<GlobalVariableDefintion, ParsingError> {
         self.advance()?;
-        if let TokenKind::Identifier(ref datatype) = self.token.kind {
-            let datatype = datatype.clone();
+        if let TokenKind::Identifier(ref mut datatype) = self.token.kind {
+            let datatype = mem::take(datatype);
             self.advance()?;
-            if let TokenKind::Identifier(ref name) = self.token.kind {
-                let name = name.clone();
+            if let TokenKind::Identifier(ref mut name) = self.token.kind {
+                let name = mem::take(name);
                 self.advance()?;
                 self.expect(TokenKind::Atom(';'))?;
                 return Ok(GlobalVariableDefintion { datatype, name });
@@ -292,7 +298,9 @@ where
                 Keyword::WHILE => self.while_loop(),
                 Keyword::LET => self.local_let(),
                 Keyword::RETURN => self.ret(),
-                _ => Err(ParsingError::StatementExpectedError(self.token.clone())),
+                _ => Err(ParsingError::StatementExpectedError(mem::take(
+                    &mut self.token,
+                ))),
             }
         } else if self.token == '{' {
             self.block()
@@ -364,8 +372,8 @@ where
                 self.advance()?;
                 Ok(Expression::BooleanLiteral(boolean))
             }
-            TokenKind::Identifier(ref identifier) => {
-                let identifier = identifier.clone();
+            TokenKind::Identifier(ref mut identifier) => {
+                let identifier = mem::take(identifier);
                 self.advance()?;
                 if let TokenKind::Atom('(') = self.token.kind {
                     let mut args = Vec::new();
@@ -383,14 +391,16 @@ where
                     Ok(Expression::Identifier(identifier))
                 }
             }
-            TokenKind::StringLiteral(ref literal) => {
-                let literal = literal.clone();
+            TokenKind::StringLiteral(ref mut literal) => {
+                let literal = mem::take(literal);
                 self.advance()?;
                 Ok(Expression::StringLiteral(literal))
             }
             TokenKind::Operator(op) => self.unary(op),
             TokenKind::Atom('(') => self.parenthesis_expression(),
-            _ => Err(ParsingError::ExpressionExpectedError(self.token.clone())),
+            _ => Err(ParsingError::ExpressionExpectedError(mem::take(
+                &mut self.token,
+            ))),
         }
     }
 
@@ -443,21 +453,23 @@ where
 
     fn function_declaration(&mut self) -> Result<FunctionDeclaration, ParsingError> {
         self.advance()?;
-        let mut calling_convention = None;
-        if let TokenKind::StringLiteral(ref c) = self.token.kind {
-            calling_convention = Some(c.clone());
+        let calling_convention = if let TokenKind::StringLiteral(ref mut c) = self.token.kind {
+            let c = Some(mem::take(c));
             self.advance()?;
-        }
-        if let TokenKind::Identifier(ref name) = self.token.kind {
-            let name = name.clone();
+            c
+        } else {
+            None
+        };
+        if let TokenKind::Identifier(ref mut name) = self.token.kind {
+            let name = mem::take(name);
             self.advance()?;
             if self.token == '(' {
                 let parameters = self.param_list()?;
                 let mut return_type = None;
                 if self.token == Operator::RightArrow {
                     self.advance()?;
-                    if let TokenKind::Identifier(ref ret_type) = self.token.kind {
-                        return_type = Some(ret_type.clone());
+                    if let TokenKind::Identifier(ref mut ret_type) = self.token.kind {
+                        return_type = Some(mem::take(ret_type));
                         self.advance()?;
                     }
                 }
