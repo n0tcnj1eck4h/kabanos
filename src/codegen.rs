@@ -13,17 +13,19 @@ use inkwell::{
     IntPredicate,
 };
 
-use crate::semantic::{self, BinaryOperator, LValue, Primitive};
+use crate::semantic::{self, BinaryOperator, LValue, Primitive, SemanticError};
 
 #[derive(Debug)]
 pub enum IRBuilerError {
     LLVMBuilderError(BuilderError),
+    SemanticError(SemanticError),
 }
 
 impl Display for IRBuilerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::LLVMBuilderError(err) => write!(f, "{:?}", err),
+            Self::SemanticError(err) => err.fmt(f),
         }
     }
 }
@@ -31,6 +33,12 @@ impl Display for IRBuilerError {
 impl From<BuilderError> for IRBuilerError {
     fn from(value: BuilderError) -> Self {
         Self::LLVMBuilderError(value)
+    }
+}
+
+impl From<SemanticError> for IRBuilerError {
+    fn from(value: SemanticError) -> Self {
+        Self::SemanticError(value)
     }
 }
 
@@ -60,13 +68,22 @@ impl semantic::Module {
         let module = context.create_module(name);
         let mut symbol_table = SymbolTable::default();
 
-        for fn_def in &self.functions {
-            symbol_table.push_scope();
+        for fn_dec in &self.declarations {
+            let function = fn_dec.build_function_prototype(context, &module);
+            symbol_table.add_function(fn_dec.name.clone(), function);
+        }
 
+        for fn_def in &self.functions {
             let function = fn_def
                 .declaration
                 .build_function_prototype(context, &module);
+            symbol_table.add_function(fn_def.declaration.name.clone(), function);
+        }
 
+        for fn_def in &self.functions {
+            symbol_table.push_scope();
+
+            let function = symbol_table.get_function(&fn_def.declaration.name).unwrap();
             let block = context.append_basic_block(function, "entry");
             builder.position_at_end(block);
 
@@ -126,27 +143,28 @@ pub struct Symbol<'ctx> {
 }
 
 #[derive(Default)]
-pub struct SymbolTable<'ctx> {
+struct SymbolTable<'ctx> {
     scope_stack: VecDeque<HashMap<String, Symbol<'ctx>>>,
+    functions: HashMap<String, FunctionValue<'ctx>>,
 }
 
 impl<'ctx> SymbolTable<'ctx> {
-    pub fn push_value(&mut self, name: &str, symbol: Symbol<'ctx>) {
+    fn push_value(&mut self, name: &str, symbol: Symbol<'ctx>) {
         self.scope_stack
             .back_mut()
             .expect("There is no stack to put local var in")
             .insert(name.into(), symbol);
     }
 
-    pub fn push_scope(&mut self) {
+    fn push_scope(&mut self) {
         self.scope_stack.push_back(Default::default());
     }
 
-    pub fn pop_scope(&mut self) {
+    fn pop_scope(&mut self) {
         self.scope_stack.pop_back();
     }
 
-    pub fn get_value(&self, name: &str) -> Option<Symbol<'ctx>> {
+    fn get_value(&self, name: &str) -> Option<Symbol<'ctx>> {
         for scope in self.scope_stack.iter().rev() {
             if let Some(value) = scope.get(name) {
                 return Some(*value);
@@ -157,6 +175,14 @@ impl<'ctx> SymbolTable<'ctx> {
         //     return Some(*value);
         // }
         None
+    }
+
+    fn add_function(&mut self, name: String, function: FunctionValue<'ctx>) {
+        self.functions.insert(name, function);
+    }
+
+    fn get_function(&self, name: &str) -> Option<FunctionValue<'ctx>> {
+        self.functions.get(name).copied()
     }
 }
 
@@ -175,7 +201,7 @@ impl semantic::Statement {
                 let ptr = builder.build_alloca(ty, &name)?;
                 if let Some(expression) = value {
                     let value = expression.build_expression(context, builder, symbol_table)?;
-                    builder.build_store(ptr, value)?;
+                    builder.build_store(ptr, void_check(value)?)?;
                 }
 
                 let symbol = Symbol { ptr, ty };
@@ -184,7 +210,8 @@ impl semantic::Statement {
                 Ok(())
             }
             Self::Conditional(condition, block, else_block_) => {
-                let condition = condition.build_expression(context, builder, symbol_table)?;
+                let condition =
+                    void_check(condition.build_expression(context, builder, symbol_table)?)?;
 
                 let then_block = context.append_basic_block(function, "then");
                 let else_block = context.append_basic_block(function, "else");
@@ -215,9 +242,11 @@ impl semantic::Statement {
                 let continue_block = context.append_basic_block(function, "continue");
 
                 builder.build_unconditional_branch(loop_block)?;
-
                 builder.position_at_end(loop_block);
-                let condition = condition.build_expression(context, builder, symbol_table)?;
+
+                let condition =
+                    void_check(condition.build_expression(context, builder, symbol_table)?)?;
+
                 builder.build_conditional_branch(
                     condition.into_int_value(), // lol
                     body_block,
@@ -240,8 +269,12 @@ impl semantic::Statement {
                 Ok(())
             }
             Self::Return(expression) => {
-                let ret_value = expression.build_expression(context, builder, symbol_table)?;
-                builder.build_return(Some(&ret_value))?;
+                if let Some(expression) = expression {
+                    let ret_value = expression.build_expression(context, builder, symbol_table)?;
+                    builder.build_return(Some(&void_check(ret_value)?))?;
+                } else {
+                    builder.build_return(None)?;
+                }
                 Ok(())
             }
             Self::Expression(expression) => {
@@ -252,37 +285,51 @@ impl semantic::Statement {
     }
 }
 
+fn void_check<T>(expr: Option<T>) -> CodegenResult<T> {
+    expr.ok_or(SemanticError::VoidOperation.into())
+}
+
 impl semantic::Expression {
     fn build_expression<'ctx>(
         &self,
         context: &'ctx Context,
         builder: &Builder<'ctx>,
         symbol_table: &SymbolTable<'ctx>,
-    ) -> CodegenResult<BasicValueEnum<'ctx>> {
+    ) -> CodegenResult<Option<BasicValueEnum<'ctx>>> {
         match self {
             Self::Assignment(LValue::Identifier(ident), expr) => {
-                let r = expr.build_expression(context, builder, symbol_table)?;
+                let r = void_check(expr.build_expression(context, builder, symbol_table)?)?;
                 let symbol = symbol_table.get_value(&ident).expect("lval is undefined");
                 if symbol.ty != r.get_type() {
-                    panic!("assignemtn type mismatch")
+                    return Err(SemanticError::TypeMismatch {
+                        expected: Primitive::I32,
+                        recieved: Some(Primitive::I32),
+                    }
+                    .into());
                 }
                 builder.build_store(symbol.ptr, r)?;
-                return Ok(builder.build_load(symbol.ty, symbol.ptr, ident)?);
+                return Ok(Some(builder.build_load(symbol.ty, symbol.ptr, ident)?));
             }
             Self::LValue(LValue::Identifier(identifier)) => {
                 let symbol = symbol_table
                     .get_value(identifier)
                     .expect(&format!("Identifier {} not on stack", identifier));
-                Ok(builder.build_load(symbol.ty, symbol.ptr, &identifier)?)
+                Ok(Some(builder.build_load(
+                    symbol.ty,
+                    symbol.ptr,
+                    &identifier,
+                )?))
             }
-            Self::BooleanLiteral(b) => Ok(context.bool_type().const_int(*b as u64, false).into()),
-            Self::IntegerLiteral(int) => {
-                Ok(context.i32_type().const_int(*int as u64, false).into())
+            Self::BooleanLiteral(b) => {
+                Ok(Some(context.bool_type().const_int(*b as u64, false).into()))
             }
-            Self::FloatLiteral(f) => Ok(context.f32_type().const_float(*f).into()),
+            Self::IntegerLiteral(int) => Ok(Some(
+                context.i32_type().const_int(*int as u64, false).into(),
+            )),
+            Self::FloatLiteral(f) => Ok(Some(context.f32_type().const_float(*f).into())),
             Self::BinaryOperation(lexpr, op, rexpr) => {
-                let mut l = lexpr.build_expression(context, builder, symbol_table)?;
-                let r = rexpr.build_expression(context, builder, symbol_table)?;
+                let mut l = void_check(lexpr.build_expression(context, builder, symbol_table)?)?;
+                let r = void_check(rexpr.build_expression(context, builder, symbol_table)?)?;
 
                 if let (BasicValueEnum::IntValue(l_), BasicValueEnum::FloatValue(r)) = (l, r) {
                     l = builder
@@ -291,7 +338,7 @@ impl semantic::Expression {
                 }
 
                 if let (BasicValueEnum::IntValue(l), BasicValueEnum::IntValue(r)) = (l, r) {
-                    return Ok(build_int_binop(builder, *op, l, r)?.into());
+                    return Ok(Some(build_int_binop(builder, *op, l, r)?.into()));
                 }
 
                 panic!(
@@ -303,8 +350,22 @@ impl semantic::Expression {
                 // TODO
                 Ok(expr.build_expression(context, builder, symbol_table)?)
             }
-            Self::FunctionCall(_, _) => panic!("function calls are not supported yet"),
-            // Self::StringLiteral(_) => panic!("string literals are not supported yet"),
+            Self::FunctionCall(name, arguments) => {
+                let fn_value = symbol_table
+                    .get_function(name)
+                    .expect("undeclared function");
+                let mut args = Vec::new();
+                for a in arguments {
+                    let a = void_check(a.build_expression(context, builder, symbol_table)?)?;
+                    args.push(a.into());
+                }
+                let call_site = builder.build_call(fn_value, &args, name)?;
+                if let Some(ret_val) = call_site.try_as_basic_value().left() {
+                    Ok(Some(ret_val))
+                } else {
+                    Ok(None)
+                }
+            } // Self::StringLiteral(_) => panic!("string literals are not supported yet"),
         }
     }
 }

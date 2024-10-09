@@ -313,9 +313,14 @@ where
 
     fn ret(&mut self) -> Result<Statement, ParsingError> {
         self.advance()?;
-        let expression = self.expression()?;
-        self.expect(TokenKind::Atom(';'))?;
-        return Ok(Statement::Return(expression));
+        if self.token != ';' {
+            let expression = self.expression()?;
+            self.expect(TokenKind::Atom(';'))?;
+            Ok(Statement::Return(Some(expression)))
+        } else {
+            self.advance()?;
+            Ok(Statement::Return(None))
+        }
     }
 
     fn conditional(&mut self) -> Result<Statement, ParsingError> {

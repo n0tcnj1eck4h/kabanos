@@ -88,7 +88,9 @@ impl TryFrom<ast::Statement> for Statement {
                 }
                 Ok(Self::Block(r))
             }
-            ast::Statement::Return(expr) => Ok(Self::Return(expr.try_into()?)),
+            ast::Statement::Return(expr) => {
+                Ok(Self::Return(expr.map(TryInto::try_into).transpose()?))
+            }
             ast::Statement::LocalVar(identifier, ty, expr) => {
                 if let Some(ty) = ty {
                     Ok(Self::LocalVar(
@@ -109,7 +111,13 @@ impl TryFrom<ast::Expression> for Expression {
     fn try_from(value: ast::Expression) -> Result<Self, Self::Error> {
         match value {
             ast::Expression::Identifier(ident) => Ok(Self::LValue(LValue::Identifier(ident))),
-            ast::Expression::FunctionCall(_, _) => unimplemented!(),
+            ast::Expression::FunctionCall(name, arguments) => {
+                let mut v = Vec::new();
+                for a in arguments {
+                    v.push(a.try_into()?);
+                }
+                Ok(Self::FunctionCall(name, v))
+            }
             ast::Expression::StringLiteral(_) => unimplemented!(),
             ast::Expression::IntegerLiteral(int) => Ok(Self::IntegerLiteral(int)),
             ast::Expression::BooleanLiteral(bool) => Ok(Self::BooleanLiteral(bool)),

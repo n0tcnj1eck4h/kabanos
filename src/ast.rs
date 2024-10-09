@@ -47,7 +47,7 @@ pub enum Statement {
     LocalVar(String, Option<String>, Option<Expression>),
     Loop(Expression, Box<Statement>),
     Expression(Expression),
-    Return(Expression),
+    Return(Option<Expression>),
 }
 
 #[derive(Debug, Clone)]

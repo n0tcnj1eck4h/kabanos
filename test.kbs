@@ -1,19 +1,22 @@
-extern extern_function_name() -> i32;
+#ssize_t write(int fd, const void buf[.count], size_t count);
+#extern write(i32 fd, ) -> i32;
+
+extern putchar(i32 c);
 
 fn main() -> i32 {
-  let n: i32 = 15;
-  let i: i32 = 0;
-  let a: i32 = 0;
-  let b: i32 = 1;
+  print_ascii();
+  return 0;
+}
 
-  while i < n {
-    let temp: i32 = a;
-    a = b;
-    b = temp + a;
+fn print_ascii() {
+  let i: i32 = 0;
+
+  while i < 256 {
+    putchar(i);
     i = i + 1;
   }
 
-  return a;
+  return;
 }
 
 fn fibonacci(i32 n) -> i32 {

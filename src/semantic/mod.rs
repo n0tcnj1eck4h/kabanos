@@ -50,7 +50,7 @@ pub enum Statement {
     Loop(Expression, Box<Statement>),
     Expression(Expression),
     Block(Vec<Statement>),
-    Return(Expression),
+    Return(Option<Expression>),
 }
 
 #[derive(Debug, Clone)]
