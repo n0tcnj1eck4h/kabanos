@@ -18,8 +18,8 @@ where
         Lexer {
             stream,
             ch,
-            col: 0,
-            row: 0,
+            col: 1,
+            row: 1,
         }
     }
 
@@ -159,7 +159,6 @@ where
                 ('&', Some('&')) => { self.advance(); Some(Operator::LogicAnd) }
                 ('|', Some('|')) => { self.advance(); Some(Operator::LogicOr) }
                 (':', Some(':')) => { self.advance(); Some(Operator::ScopeResolution) }
-                ('-', Some('>')) => { self.advance(); Some(Operator::RightArrow) }
                 ('+', _) => Some(Operator::Add),
                 ('-', _) => Some(Operator::Minus),
                 ('*', _) => Some(Operator::Asterisk),

@@ -115,7 +115,6 @@ pub enum Operator {
     Exclamation,
     //////
     ScopeResolution,
-    RightArrow,
 }
 
 #[rustfmt::skip]
@@ -143,7 +142,6 @@ impl Operator {
            Operator::Assign          => 5,
            Operator::Tilde       => -1,
            Operator::Exclamation        => -1,
-           Operator::RightArrow      => -1,
            Operator::ScopeResolution => -1,
         }
     }

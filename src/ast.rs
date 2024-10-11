@@ -3,14 +3,14 @@ use crate::token::Operator;
 #[derive(Debug)]
 pub struct Module {
     pub imports: Vec<Import>,
-    pub function_declarations: Vec<FunctionDeclaration>,
+    pub function_declarations: Vec<FunctionPrototype>,
     pub function_definitions: Vec<FunctionDefinition>,
     pub type_definitions: Vec<Composite>,
     pub globals: Vec<GlobalVariableDefintion>,
 }
 
 #[derive(Debug)]
-pub struct FunctionDeclaration {
+pub struct FunctionPrototype {
     pub name: String,
     pub parameters: Vec<Parameter>,
     pub calling_convention: Option<String>,
@@ -19,7 +19,7 @@ pub struct FunctionDeclaration {
 
 #[derive(Debug)]
 pub struct FunctionDefinition {
-    pub declaration: FunctionDeclaration,
+    pub prototype: FunctionPrototype,
     pub body: Vec<Statement>,
 }
 

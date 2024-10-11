@@ -1,9 +1,9 @@
 #ssize_t write(int fd, const void buf[.count], size_t count);
 #extern write(i32 fd, ) -> i32;
 
-extern putchar(i32 c);
+extern fn putchar(i32 c): i32
 
-fn main() -> i32 {
+fn main(): i32 {
   print_ascii();
   return 0;
 }
@@ -19,7 +19,7 @@ fn print_ascii() {
   return;
 }
 
-fn fibonacci(i32 n) -> i32 {
+fn fibonacci(i32 n): i32 {
   let i: i32 = 0;
 
   let a: i32 = 1;

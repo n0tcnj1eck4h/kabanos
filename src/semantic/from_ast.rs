@@ -25,10 +25,10 @@ impl TryFrom<ast::Module> for Module {
     }
 }
 
-impl TryFrom<ast::FunctionDeclaration> for FunctionDeclaration {
+impl TryFrom<ast::FunctionPrototype> for FunctionDeclaration {
     type Error = SemanticError;
 
-    fn try_from(declaration: ast::FunctionDeclaration) -> Result<Self, Self::Error> {
+    fn try_from(declaration: ast::FunctionPrototype) -> Result<Self, Self::Error> {
         let name = declaration.name;
 
         let mut params = Vec::new();
@@ -55,7 +55,7 @@ impl TryFrom<ast::FunctionDefinition> for FunctionDefinition {
             body.push(statement);
         }
 
-        let declaration = function.declaration.try_into()?;
+        let declaration = function.prototype.try_into()?;
 
         Ok(Self { declaration, body })
     }

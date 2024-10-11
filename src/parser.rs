@@ -2,7 +2,7 @@ use std::mem;
 
 use crate::{
     ast::{
-        Composite, CompositeField, Expression, FunctionDeclaration, FunctionDefinition,
+        Composite, CompositeField, Expression, FunctionDefinition, FunctionPrototype,
         GlobalVariableDefintion, Import, Module, Parameter, Statement,
     },
     token::{Keyword, Operator, Token, TokenKind},
@@ -169,41 +169,6 @@ where
 
             self.expect(TokenKind::Atom(','))?;
         }
-    }
-
-    fn function_definition(&mut self) -> Result<FunctionDefinition, ParsingError> {
-        self.advance()?;
-        if let TokenKind::Identifier(ref mut function_name) = self.token.kind {
-            let name = mem::take(function_name);
-
-            self.advance()?;
-            let parameters = self.param_list()?;
-
-            let mut return_type = None;
-            if self.token == Operator::RightArrow {
-                self.advance()?;
-                if let TokenKind::Identifier(ref mut ret_type) = self.token.kind {
-                    return_type = Some(mem::take(ret_type));
-                    self.advance()?;
-                }
-            }
-
-            let calling_convention = None;
-
-            let declaration = FunctionDeclaration {
-                name,
-                parameters,
-                return_type,
-                calling_convention,
-            };
-
-            if self.token == '{' {
-                let body = self.fn_body()?;
-                return Ok(FunctionDefinition { declaration, body });
-            }
-        }
-
-        return self.error();
     }
 
     pub fn import(&mut self) -> Result<Import, ParsingError> {
@@ -456,8 +421,28 @@ where
         expr
     }
 
-    fn function_declaration(&mut self) -> Result<FunctionDeclaration, ParsingError> {
+    fn function_definition(&mut self) -> Result<FunctionDefinition, ParsingError> {
+        let prototype = self.function_prototype()?;
+        if self.token == '{' {
+            let body = self.fn_body()?;
+            return Ok(FunctionDefinition { prototype, body });
+        }
+
+        return self.error();
+    }
+
+    fn function_declaration(&mut self) -> Result<FunctionPrototype, ParsingError> {
         self.advance()?;
+        if self.token == Keyword::FUNCTION {
+            self.function_prototype()
+        } else {
+            self.error()
+        }
+    }
+
+    fn function_prototype(&mut self) -> Result<FunctionPrototype, ParsingError> {
+        self.advance()?;
+
         let calling_convention = if let TokenKind::StringLiteral(ref mut c) = self.token.kind {
             let c = Some(mem::take(c));
             self.advance()?;
@@ -465,21 +450,21 @@ where
         } else {
             None
         };
+
         if let TokenKind::Identifier(ref mut name) = self.token.kind {
             let name = mem::take(name);
             self.advance()?;
             if self.token == '(' {
                 let parameters = self.param_list()?;
                 let mut return_type = None;
-                if self.token == Operator::RightArrow {
+                if self.token == ':' {
                     self.advance()?;
                     if let TokenKind::Identifier(ref mut ret_type) = self.token.kind {
                         return_type = Some(mem::take(ret_type));
                         self.advance()?;
                     }
                 }
-                self.expect(TokenKind::Atom(';'))?;
-                return Ok(FunctionDeclaration {
+                return Ok(FunctionPrototype {
                     name,
                     parameters,
                     calling_convention,
