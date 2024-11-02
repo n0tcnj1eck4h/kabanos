@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{ast, token::Operator};
 
-use super::Primitive;
+use super::types::TypeEnum;
 
 #[derive(Debug)]
 pub enum SemanticError {
@@ -13,8 +13,8 @@ pub enum SemanticError {
     MissingExplicitType,
     VoidOperation,
     TypeMismatch {
-        expected: Primitive,
-        recieved: Option<Primitive>,
+        expected: TypeEnum,
+        recieved: Option<TypeEnum>,
     },
 }
 

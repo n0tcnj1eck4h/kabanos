@@ -55,9 +55,7 @@ where
             self.advance()?;
             Ok(())
         } else {
-            Err(ParsingError::UnexpectedTokenError(mem::take(
-                &mut self.token,
-            )))
+            return self.error();
         }
     }
 
@@ -109,41 +107,46 @@ where
 
     fn structure(&mut self) -> Result<Composite, ParsingError> {
         self.advance()?;
-        if let TokenKind::Identifier(ref mut type_name) = self.token.kind {
-            let type_name = mem::take(type_name);
-            let mut fields = Vec::new();
+
+        let TokenKind::Identifier(ref mut type_name) = self.token.kind else {
+            return self.error();
+        };
+
+        let type_name = mem::take(type_name);
+        let mut fields = Vec::new();
+
+        self.advance()?;
+        self.expect(TokenKind::Atom('{'))?;
+
+        while let TokenKind::Identifier(ref mut field_type) = self.token.kind {
+            let field_type = mem::take(field_type);
             self.advance()?;
-            self.expect(TokenKind::Atom('{'))?;
-            while let TokenKind::Identifier(ref mut field_type) = self.token.kind {
-                let field_type = mem::take(field_type);
-                self.advance()?;
-                if let TokenKind::Identifier(ref mut field_name) = self.token.kind {
-                    let field_name = mem::take(field_name);
-                    fields.push(CompositeField {
-                        name: field_name,
-                        datatype: field_type,
-                    });
-                    self.advance()?;
-                    self.expect(TokenKind::Atom(';'))?;
-                } else {
-                    return self.error();
-                }
-            }
 
-            if self.token == '}' {
-                // Special case where it's okay for the stream to end
-                let _ = self.advance();
-            } else {
+            let TokenKind::Identifier(ref mut field_name) = self.token.kind else {
                 return self.error();
-            }
+            };
 
-            return Ok(Composite {
-                name: type_name,
-                fields,
+            let field_name = mem::take(field_name);
+            fields.push(CompositeField {
+                name: field_name,
+                datatype: field_type,
             });
+
+            self.advance()?;
+            self.expect(TokenKind::Atom(';'))?;
         }
 
-        self.error()
+        if self.token == '}' {
+            // Special case where it's okay for the stream to end
+            let _ = self.advance();
+        } else {
+            return self.error();
+        }
+
+        return Ok(Composite {
+            name: type_name,
+            fields,
+        });
     }
 
     fn param_list(&mut self) -> Result<Vec<Parameter>, ParsingError> {
@@ -175,12 +178,12 @@ where
         self.advance()?;
         let mut path = Vec::new();
         loop {
-            if let TokenKind::Identifier(ref mut path_segment) = self.token.kind {
-                path.push(mem::take(path_segment));
-                self.advance()?;
-            } else {
+            let TokenKind::Identifier(ref mut path_segment) = self.token.kind else {
                 return self.error();
-            }
+            };
+
+            path.push(mem::take(path_segment));
+            self.advance()?;
 
             if self.token == ';' {
                 // It's okay for the file to end after an import
@@ -188,11 +191,7 @@ where
                 return Ok(Import { path });
             }
 
-            if self.token == Operator::ScopeResolution {
-                self.advance()?;
-            } else {
-                return self.error();
-            }
+            self.expect(TokenKind::Operator(Operator::ScopeResolution))?;
         }
     }
 
@@ -206,38 +205,39 @@ where
 
     pub fn local_let(&mut self) -> Result<Statement, ParsingError> {
         self.advance()?;
-        if let TokenKind::Identifier(ref mut variable_name) = self.token.kind {
-            let variable_name = mem::take(variable_name);
+
+        let TokenKind::Identifier(ref mut variable_name) = self.token.kind else {
+            return self.error();
+        };
+
+        let variable_name = mem::take(variable_name);
+        self.advance()?;
+
+        let mut explicit_type = None;
+        if self.token == ':' {
             self.advance()?;
-            let explicit_type = if self.token == ':' {
-                self.advance()?;
-                if let TokenKind::Identifier(ref mut identifier) = self.token.kind {
-                    let explicit_type = Some(mem::take(identifier));
-                    self.advance()?;
-                    explicit_type
-                } else {
-                    return self.error();
-                }
-            } else {
-                None
+
+            let TokenKind::Identifier(ref mut identifier) = self.token.kind else {
+                return self.error();
             };
 
-            let initial_value = if self.token == Operator::Assign {
-                self.advance()?;
-                Some(self.expression()?)
-            } else {
-                None
-            };
-
-            self.expect(TokenKind::Atom(';'))?;
-            return Ok(Statement::LocalVar(
-                variable_name,
-                explicit_type,
-                initial_value,
-            ));
+            explicit_type = Some(mem::take(identifier));
+            self.advance()?;
         }
 
-        self.error()
+        let initial_value = if self.token == Operator::Assign {
+            self.advance()?;
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.expect(TokenKind::Atom(';'))?;
+        return Ok(Statement::LocalVar(
+            variable_name,
+            explicit_type,
+            initial_value,
+        ));
     }
 
     pub fn global_var(&mut self) -> Result<GlobalVariableDefintion, ParsingError> {
@@ -434,7 +434,9 @@ where
     fn function_declaration(&mut self) -> Result<FunctionPrototype, ParsingError> {
         self.advance()?;
         if self.token == Keyword::FUNCTION {
-            self.function_prototype()
+            let prototype = self.function_prototype()?;
+            self.expect(TokenKind::Atom(';'))?;
+            Ok(prototype)
         } else {
             self.error()
         }
