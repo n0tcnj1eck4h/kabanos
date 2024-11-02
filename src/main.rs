@@ -7,10 +7,9 @@ mod semantic;
 mod token;
 
 // use codegen::ModuleProvider;
-use inkwell::context::Context;
 use lexer::Lexer;
 use parser::Parser;
-use semantic::symbol::SymbolTable;
+use semantic::from_ast::Context;
 use token::Token;
 
 use std::{
@@ -29,15 +28,9 @@ fn main() {
 
         match parser.module() {
             Ok(module) => {
-                let mut symbol_table = SymbolTable::default();
-                let module = module.build_semantic(&mut symbol_table);
+                let mut context = Context::default();
+                let module = context.build_module(module);
                 dbg!(module);
-                // let context = Context::create();
-                // module
-                //     .build_module(&context, "tmp")
-                //     .unwrap()
-                //     .print_to_file("out.ll")
-                //     .unwrap();
             }
             Err(err) => println!("{:?}", err),
         }

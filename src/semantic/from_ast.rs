@@ -1,28 +1,73 @@
-use std::{collections::VecDeque, str::FromStr};
+use std::str::FromStr;
 
-use crate::ast;
+use crate::{ast, semantic::operator::UnaryOperator};
 
 use super::{
     error::SemanticError,
     expression::{ExpressionEnum, IntExpression},
     primitive::Primitive,
-    symbol::{SymbolID, SymbolTable},
+    symbol::{Symbol, SymbolID, SymbolTable},
     types::{FloatType, IntBitWidths, IntegerType, TypeEnum},
     FunctionDeclaration, FunctionDefinition, Module, Parameter, Scope, Statement,
 };
 
 #[derive(Default)]
-pub struct Context<S> {
+pub struct Context {
     symbol_table: SymbolTable,
-    stmt_iter: Option<S>,
-    expected_return_type: Option<TypeEnum>,
-    scope_stack: VecDeque<SymbolID>,
 }
 
-impl<S> Context<S>
-where
-    S: Iterator<Item = ast::Statement>,
-{
+// struct StatementBuilder<'ctx> {
+//     context: &'ctx mut Context,
+//     stmt_iter_stack: Vec<Box<dyn Iterator<Item = ast::Statement> + 'ctx>>,
+//     expected_return_type: Option<TypeEnum>,
+// }
+//
+// impl<'ctx> StatementBuilder<'ctx> {
+//     fn new<I: IntoIterator<Item = ast::Statement> + 'ctx>(
+//         statement_iter: I,
+//         context: &'ctx mut Context,
+//         expected_return_type: Option<TypeEnum>,
+//     ) -> Self {
+//         let ptr: Box<dyn Iterator<Item = ast::Statement>> = Box::new(statement_iter.into_iter());
+//
+//         let mut stmt_iter_stack = Vec::new();
+//         stmt_iter_stack.push(ptr);
+//         Self {
+//             context,
+//             stmt_iter_stack,
+//             expected_return_type,
+//         }
+//     }
+//
+//     fn nest<'a: 'ctx, I: IntoIterator<Item = ast::Statement> + 'ctx>(
+//         &'a mut self,
+//         iter: I,
+//     ) -> Self {
+//         Self {
+//             context: self.context,
+//             stmt_iter_stack: vec![Box::new(iter.into_iter())],
+//             expected_return_type: self.expected_return_type,
+//         }
+//     }
+// }
+//
+// impl<'ctx> Iterator for StatementBuilder<'ctx> {
+//     type Item = Result<Statement, SemanticError>;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let statement = if let Some(top_iter) = self.stmt_iter_stack.last_mut() {
+//             if let Some(statement) = top_iter.next() {
+//                 statement
+//             } else {
+//                 self.stmt_iter_stack.pop();
+//                 return self.next();
+//             }
+//         } else {
+//             return None;
+//         };
+//     }AHAHAHAHAH
+// }
+
+impl Context {
     pub fn build_module(&mut self, module: ast::Module) -> Result<Module, SemanticError> {
         let mut declarations = Vec::new();
         for s in module.function_declarations {
@@ -32,7 +77,7 @@ where
 
         let mut functions = Vec::new();
         for s in module.function_definitions {
-            let s = s.build_semantic(symbol_table)?;
+            let s = self.build_definition(s)?;
             functions.push(s);
         }
 
@@ -40,6 +85,86 @@ where
             functions,
             declarations,
         })
+    }
+
+    fn build_statements<I: IntoIterator<Item = ast::Statement>>(
+        &mut self,
+        iter: I,
+        stack: &mut Vec<SymbolID>,
+    ) -> Result<Vec<Statement>, SemanticError> {
+        let mut iter = iter.into_iter();
+        let mut statements = Vec::new();
+
+        while let Some(statement) = iter.next() {
+            match statement {
+                ast::Statement::Conditional(expr, true_block, else_block) => {
+                    let expr = self.build_expression(expr)?;
+                    let expr = self.cast_to_int(expr)?;
+
+                    let true_block = self.build_statements(true_block, stack)?;
+
+                    if let Some(else_block) = else_block {
+                        let else_block = self.build_statements(else_block, stack)?;
+                        statements.push(Statement::Conditional(expr, true_block, Some(else_block)));
+                    } else {
+                        statements.push(Statement::Conditional(expr, true_block, None));
+                    }
+                }
+                ast::Statement::Expression(expr) => {
+                    statements.push(Statement::Expression(self.build_expression(expr)?))
+                }
+                ast::Statement::Loop(expr, s) => {
+                    let expr = self.build_expression(expr)?;
+                    let expr = self.cast_to_int(expr)?;
+                    let s = self.build_statements(s, stack)?;
+                    statements.push(Statement::Loop(expr, s));
+                }
+                ast::Statement::Block(s) => {
+                    let old_len = stack.len();
+                    let s = self.build_statements(s, stack)?;
+                    stack.truncate(old_len);
+                    statements.extend(s);
+                }
+                ast::Statement::Return(expr) => {
+                    if let Some(expr) = expr {
+                        let expr = self.build_expression(expr)?;
+                        statements.push(Statement::Return(Some(expr)));
+                    } else {
+                        statements.push(Statement::Return(None));
+                    }
+                }
+
+                ast::Statement::LocalVar(identifier, ty, expr) => {
+                    let ty = ty.expect("Implicit type not supported");
+                    let primitive = Primitive::from_str(&ty).unwrap();
+                    let ty: TypeEnum = primitive.into();
+
+                    if let Some(expr) = expr {
+                        let expr = self.build_expression(expr)?;
+                        let expr_ty = self.get_expression_type(&expr);
+
+                        assert_eq!(ty, expr_ty);
+                    };
+
+                    let symbol = Symbol { identifier, ty };
+
+                    let symbol_id = self.symbol_table.push_local_symbol(symbol);
+                    stack.push(symbol_id);
+                    let s = self.build_statements(iter, stack)?;
+                    stack.pop();
+
+                    let scope = Scope {
+                        symbol: symbol_id,
+                        body: s,
+                    };
+
+                    statements.push(Statement::Block(scope));
+                    break;
+                }
+            }
+        }
+
+        return Ok(statements);
     }
 
     fn build_declaration(
@@ -69,94 +194,11 @@ where
         definition: ast::FunctionDefinition,
     ) -> Result<FunctionDefinition, SemanticError> {
         let declaration = self.build_declaration(definition.prototype)?;
-        self.expected_return_type = declaration.ty;
 
-        let mut scope = Scope::default();
-        for statement in definition.body {
-            scope.body.push(statement.build_semantic(symbol_table)?);
-        }
+        let mut stack = Vec::new();
+        let body = self.build_statements(definition.body, &mut stack)?;
 
-        Ok(FunctionDefinition {
-            declaration,
-            body: scope,
-        })
-    }
-
-    fn build_next_statement(&mut self) -> Result<Option<Statement>, SemanticError> {
-        let Some(statement) = self.stmt_iter.unwrap().next() else {
-            return Ok(None);
-        };
-
-        match statement {
-            ast::Statement::Conditional(expr, true_block, else_block) => {
-                let expr = self.build_expression(expr)?;
-                let expr = self.cast_to_int(expr)?;
-
-                let true_block = Box::new(self.build_declaration);
-
-                let else_block = else_block
-                    .map(|eb| (*eb).build_semantic(symbol_table))
-                    .transpose()?
-                    .map(Box::new);
-
-                Ok(Statement::Conditional(expr, true_block, else_block))
-            }
-            ast::Statement::Expression(expr) => {
-                Ok(Statement::Expression(expr.build_semantic(symbol_table)?))
-            }
-            ast::Statement::Loop(expr, statement) => {
-                let expr = expr
-                    .build_semantic(symbol_table)?
-                    .cast_to_int(symbol_table)?;
-
-                let statement = Box::new((*statement).build_semantic(symbol_table)?);
-
-                Ok(Statement::Loop(expr, statement))
-            }
-            ast::Statement::Block(statements) => {
-                symbol_table.push_scope();
-
-                let mut body = Vec::new();
-                for s in statements {
-                    let s = s.build_semantic(symbol_table)?;
-                    body.push(s);
-                }
-
-                let local_symbols = symbol_table.pop_scope().values().copied().collect();
-                let scope = Scope {
-                    local_symbols,
-                    body,
-                };
-
-                Ok(Statement::Block(scope))
-            }
-            ast::Statement::Return(expr) => Ok(Statement::Return(
-                // TODO: return type???
-                expr.map(|e| e.build_semantic(symbol_table)).transpose()?,
-            )),
-            ast::Statement::LocalVar(identifier, ty, expr) => {
-                let ty = ty.expect("Implicit type not supported");
-                let primitive = Primitive::from_str(&ty)?;
-                let ty: TypeEnum = primitive.into();
-
-                if let Some(expr) = expr {
-                    let expr = expr.build_semantic(symbol_table)?;
-                    let expr_ty = expr.get_type(symbol_table);
-
-                    assert_eq!(ty, expr_ty);
-                };
-
-                let symbol = Symbol {
-                    name: identifier,
-                    ty,
-                };
-
-                self.symbol_table.push_scope();
-                self.symbol_table.push_local_symbol(symbol);
-                // change to iterator over ast::statement
-                // move scope stack out of symbol table
-            }
-        }
+        Ok(FunctionDefinition { declaration, body })
     }
 
     fn build_expression(
@@ -181,36 +223,42 @@ where
 
     pub fn get_expression_type(&self, expr: &ExpressionEnum) -> TypeEnum {
         match expr {
-            ExpressionEnum::IntExpression(int_expr) => TypeEnum::IntType(self.get_type(int_expr)),
+            ExpressionEnum::IntExpression(int_expr) => {
+                TypeEnum::IntType(self.get_int_expr_type(int_expr))
+            }
             // TODO:
             ExpressionEnum::FloatExpression(_) => TypeEnum::FloatType(FloatType::F32),
         }
     }
 
     fn get_int_expr_type(&self, expr: &IntExpression) -> IntegerType {
-        use IntExpression::*;
         match expr {
-            Cast { ty, expr } => *ty,
-            LValue(_) => todo!(),
-            IntegerLiteral(_) => IntegerType {
+            IntExpression::Cast { ty, .. } => *ty,
+            IntExpression::LValue(symbol_id) => {
+                let TypeEnum::IntType(ty) = self.symbol_table.get_symbol(*symbol_id).ty else {
+                    panic!("int lvalue is not an actual int type oops")
+                };
+                ty
+            }
+            IntExpression::IntegerLiteral(_) => IntegerType {
                 bit_width: IntBitWidths::I64,
                 signed: false,
             },
-            BooleanLiteral(_) => IntegerType {
+            IntExpression::BooleanLiteral(_) => IntegerType {
                 bit_width: IntBitWidths::I8,
                 signed: false,
             },
-            UnaryOperation(UnaryOperator::Negative, expr) => {
-                let mut ty = expr.get_type(symbol_table);
+            IntExpression::UnaryOperation(UnaryOperator::Negative, expr) => {
+                let mut ty = self.get_int_expr_type(expr);
                 ty.signed = true;
                 ty
             }
-            UnaryOperation(_, expr) => expr.get_type(symbol_table),
-            FunctionCall(_, _) => todo!(),
-            Assignment(_, expr) => expr.get_type(symbol_table),
-            BinaryOperation(l, op, r) => {
-                let l = l.get_type(symbol_table);
-                let r = r.get_type(symbol_table);
+            IntExpression::UnaryOperation(_, expr) => self.get_int_expr_type(expr),
+            IntExpression::FunctionCall(_, _) => todo!(),
+            IntExpression::Assignment(_, expr) => self.get_int_expr_type(expr),
+            IntExpression::BinaryOperation(l, _, r) => {
+                let l = self.get_int_expr_type(l);
+                let r = self.get_int_expr_type(r);
                 let bit_width = l.bit_width.max(r.bit_width);
                 let signed = l.signed;
                 IntegerType { bit_width, signed }

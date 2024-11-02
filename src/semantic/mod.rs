@@ -10,9 +10,9 @@ use expression::{ExpressionEnum, IntExpression};
 use symbol::{SymbolID, SymbolTable};
 use types::TypeEnum;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Scope {
-    pub local_symbols: Vec<SymbolID>,
+    pub symbol: SymbolID,
     pub body: Vec<Statement>,
 }
 
@@ -32,7 +32,7 @@ pub struct FunctionDeclaration {
 #[derive(Debug)]
 pub struct FunctionDefinition {
     pub declaration: FunctionDeclaration,
-    pub body: Scope,
+    pub body: Vec<Statement>,
 }
 
 #[derive(Debug)]
@@ -43,9 +43,9 @@ pub struct Parameter {
 
 #[derive(Debug)]
 pub enum Statement {
-    Conditional(IntExpression, Box<Statement>, Option<Box<Statement>>),
+    Conditional(IntExpression, Vec<Statement>, Option<Vec<Statement>>),
     VoidFunctionCall(String, Vec<ExpressionEnum>),
-    Loop(IntExpression, Box<Statement>),
+    Loop(IntExpression, Vec<Statement>),
     Return(Option<ExpressionEnum>),
     Expression(ExpressionEnum),
     Block(Scope),
