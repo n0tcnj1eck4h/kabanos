@@ -10,8 +10,8 @@ pub enum SemanticError {
     NotUnaryOp(Operator),
     NotPrimitive(String),
     LValue(ast::Expression),
-    MissingExplicitType,
     VoidOperation,
+    FunctionCallsNotImplemented,
     InvalidUnaryOp(UnaryOperator, TypeKind),
     Undeclared(String),
     ReturnTypeMismatch {
@@ -34,10 +34,7 @@ impl Display for SemanticError {
                 write!(f, "{:?} is not a valid primitive type", ident)
             }
             SemanticError::LValue(expr) => write!(f, "{:?} is not an lvalue", expr),
-            SemanticError::MissingExplicitType => {
-                write!(f, "Implicit variable types are not allowed yet")
-            }
-            SemanticError::VoidOperation => write!(f, "Operation an a void value"),
+            SemanticError::VoidOperation => write!(f, "Operation on a void value"),
             SemanticError::Undeclared(ident) => write!(f, "Unknown identifier {}", ident),
             SemanticError::TypeMismatch { expected, recieved } => write!(
                 f,
@@ -55,6 +52,9 @@ impl Display for SemanticError {
                 "Invalid unary operation {:?} on type {:?}",
                 unary_operator, type_kind
             ),
+            SemanticError::FunctionCallsNotImplemented => {
+                write!(f, "Function calls are not implemented yet")
+            }
         }
     }
 }

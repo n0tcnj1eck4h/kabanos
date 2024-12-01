@@ -1,11 +1,14 @@
-use crate::token::Operator;
+pub mod error;
+pub mod parser;
+
+use crate::{span::Span, token::Operator};
 
 #[derive(Debug)]
 pub struct Module {
     pub imports: Vec<Import>,
-    pub function_declarations: Vec<FunctionPrototype>,
-    pub function_definitions: Vec<FunctionDefinition>,
-    pub type_definitions: Vec<Composite>,
+    pub fn_declarations: Vec<FunctionPrototype>,
+    pub fn_definitions: Vec<FunctionDefinition>,
+    pub ty_definitions: Vec<Composite>,
     pub globals: Vec<GlobalVariableDefintion>,
 }
 
@@ -51,7 +54,13 @@ pub enum Statement {
 }
 
 #[derive(Debug, Clone)]
-pub enum Expression {
+pub struct Expression {
+    pub kind: ExpressionKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExpressionKind {
     IntegerLiteral(u64),
     FloatLiteral(f64),
     StringLiteral(String),

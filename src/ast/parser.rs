@@ -1,20 +1,13 @@
+use crate::ast::error::ParsingError;
 use std::mem;
 
 use crate::{
     ast::{
-        Composite, CompositeField, Expression, FunctionDefinition, FunctionPrototype,
-        GlobalVariableDefintion, Import, Module, Parameter, Statement,
+        Composite, CompositeField, Expression, ExpressionKind, FunctionDefinition,
+        FunctionPrototype, GlobalVariableDefintion, Import, Module, Parameter, Statement,
     },
     token::{Keyword, Operator, Token, TokenKind},
 };
-
-#[derive(Debug, PartialEq)]
-pub enum ParsingError {
-    UnexpectedTokenError(Token),
-    ExpressionExpectedError(Token),
-    StatementExpectedError(Token),
-    UnexpectedEOF,
-}
 
 pub struct Parser<L> {
     lexer: L,
@@ -66,11 +59,11 @@ where
     }
 
     pub fn module(&mut self) -> Result<Module, ParsingError> {
-        let mut fn_defs = Vec::new();
-        let mut fn_decls = Vec::new();
+        let mut fn_definitions = Vec::new();
+        let mut fn_declarations = Vec::new();
         let mut imports = Vec::new();
         let mut globals = Vec::new();
-        let mut typedefs = Vec::new();
+        let mut ty_definitions = Vec::new();
 
         while self.token.kind == TokenKind::Keyword(Keyword::IMPORT) {
             imports.push(self.import()?);
@@ -79,14 +72,14 @@ where
         while self.next_token.is_some() {
             match self.token.kind {
                 TokenKind::Keyword(Keyword::FUNCTION) => {
-                    fn_defs.push(self.function_definition()?);
+                    fn_definitions.push(self.function_definition()?);
                 }
                 TokenKind::Keyword(Keyword::GLOBAL) => globals.push(self.global_var()?),
                 TokenKind::Keyword(Keyword::EXTERN) => {
-                    fn_decls.push(self.function_declaration()?);
+                    fn_declarations.push(self.function_declaration()?);
                 }
                 TokenKind::Keyword(Keyword::STRUCT) => {
-                    typedefs.push(self.structure()?);
+                    ty_definitions.push(self.structure()?);
                 }
                 _ => self.error()?,
             }
@@ -95,9 +88,9 @@ where
         if self.advance() == Err(ParsingError::UnexpectedEOF) {
             Ok(Module {
                 imports,
-                function_declarations: fn_decls,
-                function_definitions: fn_defs,
-                type_definitions: typedefs,
+                fn_declarations,
+                fn_definitions,
+                ty_definitions,
                 globals,
             })
         } else {
@@ -329,18 +322,22 @@ where
     }
 
     fn primary(&mut self) -> Result<Expression, ParsingError> {
+        let span = self.token.span;
         match self.token.kind {
             TokenKind::IntegerLiteral(integer) => {
                 self.advance()?;
-                Ok(Expression::IntegerLiteral(integer))
+                let kind = ExpressionKind::IntegerLiteral(integer);
+                Ok(Expression { kind, span })
             }
             TokenKind::FloatingPointLiteral(float) => {
                 self.advance()?;
-                Ok(Expression::FloatLiteral(float))
+                let kind = ExpressionKind::FloatLiteral(float);
+                Ok(Expression { kind, span })
             }
             TokenKind::BooleanLiteral(boolean) => {
                 self.advance()?;
-                Ok(Expression::BooleanLiteral(boolean))
+                let kind = ExpressionKind::BooleanLiteral(boolean);
+                Ok(Expression { kind, span })
             }
             TokenKind::Identifier(ref mut identifier) => {
                 let identifier = mem::take(identifier);
@@ -355,16 +352,20 @@ where
                         }
                         self.advance()?;
                     }
+                    let span = span.join(self.token.span);
                     self.advance()?;
-                    Ok(Expression::FunctionCall(identifier, args))
+                    let kind = ExpressionKind::FunctionCall(identifier, args);
+                    Ok(Expression { kind, span })
                 } else {
-                    Ok(Expression::Identifier(identifier))
+                    let kind = ExpressionKind::Identifier(identifier);
+                    Ok(Expression { kind, span })
                 }
             }
             TokenKind::StringLiteral(ref mut literal) => {
                 let literal = mem::take(literal);
                 self.advance()?;
-                Ok(Expression::StringLiteral(literal))
+                let kind = ExpressionKind::StringLiteral(literal);
+                Ok(Expression { kind, span })
             }
             TokenKind::Operator(op) => self.unary(op),
             TokenKind::Atom('(') => self.parenthesis_expression(),
@@ -375,11 +376,12 @@ where
     }
 
     fn unary(&mut self, operator: Operator) -> Result<Expression, ParsingError> {
+        let span = self.token.span;
         self.advance()?;
-        Ok(Expression::UnaryOperation(
-            operator,
-            Box::new(self.primary()?),
-        ))
+        let kind = ExpressionKind::UnaryOperation(operator, Box::new(self.primary()?));
+        let span = span.join(self.token.span);
+
+        Ok(Expression { kind, span })
     }
 
     pub fn expression(&mut self) -> Result<Expression, ParsingError> {
@@ -407,7 +409,9 @@ where
                 }
             }
 
-            lhs = Expression::BinaryOperation(Box::new(lhs), op, Box::new(rhs))
+            let span = lhs.span.join(rhs.span);
+            let kind = ExpressionKind::BinaryOperation(Box::new(lhs), op, Box::new(rhs));
+            lhs = Expression { kind, span };
         }
 
         Ok(lhs)

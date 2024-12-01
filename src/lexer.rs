@@ -1,11 +1,14 @@
 use std::str::FromStr;
 
-use crate::token::{Keyword, Operator, Token, TokenKind};
+use crate::{
+    span::{Position, Span},
+    token::{Keyword, Operator, Token, TokenKind},
+};
 
 pub struct Lexer<T> {
     stream: T,
-    col: usize,
-    row: usize,
+    pos: Position,
+    token_start: Position,
     ch: Option<char>,
 }
 
@@ -15,29 +18,30 @@ where
 {
     pub fn new(mut stream: T) -> Self {
         let ch = stream.next();
+        let pos = Position { col: 1, row: 1 };
         Lexer {
             stream,
             ch,
-            col: 1,
-            row: 1,
+            pos,
+            token_start: pos,
         }
     }
 
     fn token(&self, kind: TokenKind) -> Option<Token> {
-        Some(Token {
-            kind,
-            col: self.col,
-            row: self.row,
-        })
+        let span = Span {
+            start: self.token_start,
+            end: self.pos,
+        };
+        Some(Token { kind, span })
     }
 
     fn advance(&mut self) -> bool {
         self.ch = self.stream.next();
         if let Some('\n') = self.ch {
-            self.col = 1;
-            self.row += 1;
+            self.pos.col = 1;
+            self.pos.row += 1;
         } else {
-            self.col += 1;
+            self.pos.col += 1;
         }
         self.ch.is_some()
     }
@@ -66,6 +70,9 @@ where
             None => return None,
         };
 
+        self.token_start = self.pos;
+
+        // Skip comments
         if ch == '#' {
             while let Some(ch) = self.ch {
                 self.advance();
@@ -74,7 +81,9 @@ where
                 }
             }
             return self.next();
-        } else if ch.is_alphabetic() {
+        }
+
+        if ch.is_alphabetic() {
             let mut buf = String::new();
             while let Some(ch) = self.ch {
                 if ch.is_alphanumeric() || ch == '_' {
@@ -94,7 +103,9 @@ where
                 "true" => self.token(TokenKind::BooleanLiteral(true)),
                 _ => self.token(TokenKind::Identifier(buf)),
             };
-        } else if let '0'..='9' = ch {
+        }
+
+        if let '0'..='9' = ch {
             let mut n = 0u64;
             while let Some(ch) = self.ch {
                 if let Some(d) = ch.to_digit(10) {
@@ -120,7 +131,9 @@ where
                 }
             }
             return self.token(TokenKind::IntegerLiteral(n));
-        } else if ch == '"' {
+        }
+
+        if ch == '"' {
             self.advance();
             let mut buf = String::new();
             let mut escaped = false;
@@ -144,42 +157,42 @@ where
                 self.advance();
             }
             return self.token(TokenKind::StringLiteral(buf));
+        }
+
+        self.advance();
+        let ch2 = self.ch;
+
+        #[rustfmt::skip]
+        let op = match (ch, ch2) {
+            ('=', Some('=')) => { self.advance(); Some(Operator::Equal) }
+            ('<', Some('=')) => { self.advance(); Some(Operator::LessOrEqual) }
+            ('>', Some('=')) => { self.advance(); Some(Operator::GreaterOrEqual) }
+            ('>', Some('>')) => { self.advance(); Some(Operator::RightShift) }
+            ('<', Some('<')) => { self.advance(); Some(Operator::LeftShift) }
+            ('!', Some('=')) => { self.advance(); Some(Operator::NotEqual) }
+            ('&', Some('&')) => { self.advance(); Some(Operator::LogicAnd) }
+            ('|', Some('|')) => { self.advance(); Some(Operator::LogicOr) }
+            (':', Some(':')) => { self.advance(); Some(Operator::ScopeResolution) }
+            ('+', _) => Some(Operator::Add),
+            ('-', _) => Some(Operator::Minus),
+            ('*', _) => Some(Operator::Asterisk),
+            ('/', _) => Some(Operator::Divide),
+            ('%', _) => Some(Operator::Modulo),
+            ('&', _) => Some(Operator::Ampersand),
+            ('|', _) => Some(Operator::Pipe),
+            ('^', _) => Some(Operator::Caret),
+            ('~', _) => Some(Operator::Tilde),
+            ('=', _) => Some(Operator::Assign),
+            ('<', _) => Some(Operator::Less),
+            ('>', _) => Some(Operator::Greater),
+            ('!', _) => Some(Operator::Exclamation),
+            _ => None,
+        };
+
+        if let Some(op) = op {
+            return self.token(TokenKind::Operator(op));
         } else {
-            self.advance();
-            let ch2 = self.ch;
-
-            #[rustfmt::skip]
-            let op = match (ch, ch2) {
-                ('=', Some('=')) => { self.advance(); Some(Operator::Equal) }
-                ('<', Some('=')) => { self.advance(); Some(Operator::LessOrEqual) }
-                ('>', Some('=')) => { self.advance(); Some(Operator::GreaterOrEqual) }
-                ('>', Some('>')) => { self.advance(); Some(Operator::RightShift) }
-                ('<', Some('<')) => { self.advance(); Some(Operator::LeftShift) }
-                ('!', Some('=')) => { self.advance(); Some(Operator::NotEqual) }
-                ('&', Some('&')) => { self.advance(); Some(Operator::LogicAnd) }
-                ('|', Some('|')) => { self.advance(); Some(Operator::LogicOr) }
-                (':', Some(':')) => { self.advance(); Some(Operator::ScopeResolution) }
-                ('+', _) => Some(Operator::Add),
-                ('-', _) => Some(Operator::Minus),
-                ('*', _) => Some(Operator::Asterisk),
-                ('/', _) => Some(Operator::Divide),
-                ('%', _) => Some(Operator::Modulo),
-                ('&', _) => Some(Operator::Ampersand),
-                ('|', _) => Some(Operator::Pipe),
-                ('^', _) => Some(Operator::Caret),
-                ('~', _) => Some(Operator::Tilde),
-                ('=', _) => Some(Operator::Assign),
-                ('<', _) => Some(Operator::Less),
-                ('>', _) => Some(Operator::Greater),
-                ('!', _) => Some(Operator::Exclamation),
-                _ => None,
-            };
-
-            if let Some(op) = op {
-                return self.token(TokenKind::Operator(op));
-            } else {
-                return self.token(TokenKind::Atom(ch));
-            }
+            return self.token(TokenKind::Atom(ch));
         }
     }
 }

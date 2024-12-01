@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, str::FromStr};
+use std::str::FromStr;
 
 use crate::ast;
 
@@ -13,7 +13,7 @@ use super::{
 };
 
 #[derive(Default)]
-pub struct Context {
+pub struct Analyzer {
     symbol_table: SymbolTable,
 }
 
@@ -43,16 +43,16 @@ impl IntoIterator for ast::Statement {
     }
 }
 
-impl Context {
+impl Analyzer {
     pub fn build_module(&mut self, module: ast::Module) -> Result<Module, SemanticError> {
         let mut declarations = Vec::new();
-        for s in module.function_declarations {
+        for s in module.fn_declarations {
             let s = self.build_declaration(s)?;
             declarations.push(s);
         }
 
         let mut functions = Vec::new();
-        for s in module.function_definitions {
+        for s in module.fn_definitions {
             let s = self.build_definition(s)?;
             functions.push(s);
         }
@@ -204,9 +204,9 @@ impl Context {
         expression: ast::Expression,
         stack: &[LocalVarID],
     ) -> Result<Expression, SemanticError> {
-        match expression {
+        match expression.kind {
             // Every integer literal is an u64
-            ast::Expression::IntegerLiteral(i) => {
+            ast::ExpressionKind::IntegerLiteral(i) => {
                 let kind = ExpressionKind::IntegerLiteral(i);
                 let ty = IntegerTy {
                     bits: IntBitWidth::I64,
@@ -218,16 +218,18 @@ impl Context {
             }
 
             // Every float literal is f64
-            ast::Expression::FloatLiteral(f) => {
+            ast::ExpressionKind::FloatLiteral(f) => {
                 let kind = ExpressionKind::FloatLiteral(f);
                 let ty = TypeKind::FloatType(FloatTy::F64);
 
                 Ok(Expression { kind, ty })
             }
-            ast::Expression::StringLiteral(_) => panic!("String literals are not supported yet"),
+            ast::ExpressionKind::StringLiteral(_) => {
+                panic!("String literals are not supported yet")
+            }
 
             // Every boolean literal is an u8
-            ast::Expression::BooleanLiteral(b) => {
+            ast::ExpressionKind::BooleanLiteral(b) => {
                 let kind = ExpressionKind::IntegerLiteral(if b { 1 } else { 0 });
                 let ty = IntegerTy {
                     bits: IntBitWidth::I8,
@@ -237,7 +239,7 @@ impl Context {
 
                 Ok(Expression { kind, ty })
             }
-            ast::Expression::Identifier(ident) => {
+            ast::ExpressionKind::Identifier(ident) => {
                 for s in stack.iter().copied() {
                     let symbol = self.symbol_table.get(s);
                     if symbol.identifier == ident {
@@ -250,8 +252,8 @@ impl Context {
 
                 Err(SemanticError::Undeclared(ident))
             }
-            ast::Expression::BinaryOperation(left, operator, right) => {
-                let operator = operator.try_into()?;
+            ast::ExpressionKind::BinaryOperation(left, op, right) => {
+                let op = op.try_into()?;
 
                 let left = self.build_expression(*left, stack)?;
                 let right = self.build_expression(*right, stack)?;
@@ -273,12 +275,10 @@ impl Context {
                     }
                 };
 
-                let kind =
-                    ExpressionKind::BinaryOperation(Box::new(left), operator, Box::new(right));
-
+                let kind = ExpressionKind::BinaryOperation(Box::new(left), op, Box::new(right));
                 Ok(Expression { kind, ty })
             }
-            ast::Expression::UnaryOperation(operator, expression) => {
+            ast::ExpressionKind::UnaryOperation(operator, expression) => {
                 let operator = operator.try_into()?;
                 let expression = self.build_expression(*expression, stack)?;
                 let ty = match operator {
@@ -302,70 +302,23 @@ impl Context {
 
                 Ok(Expression { kind, ty })
             }
-            ast::Expression::FunctionCall(name, args) => {
-                todo!()
+            ast::ExpressionKind::FunctionCall(name, args) => {
+                Err(SemanticError::FunctionCallsNotImplemented)
             }
         }
     }
-
-    // pub fn cast_to_int(&mut self, expr: ExpressionEnum) -> Result<IntExpression, SemanticError> {
-    //     match expr {
-    //         ExpressionEnum::IntExpression(expr) => Ok(expr),
-    //         ExpressionEnum::FloatExpression(expr) => Ok(IntExpression::Cast {
-    //             ty: IntegerTy {
-    //                 bits: IntBitWidth::I8,
-    //                 sign: false,
-    //             },
-    //             expr: Box::new(ExpressionEnum::FloatExpression(expr)),
-    //         }),
-    //     }
-    // }
-    //
-    // pub fn get_expression_type(&self, expr: &ExpressionEnum) -> TypeKind {
-    //     match expr {
-    //         ExpressionEnum::IntExpression(int_expr) => {
-    //             TypeKind::IntType(self.get_int_expr_type(int_expr))
-    //         }
-    //         // TODO:
-    //         ExpressionEnum::FloatExpression(_) => TypeKind::FloatType(FloatTy::F32),
-    //     }
-    // }
-    //
-    // fn get_int_expr_type(&self, expr: &IntExpression) -> IntegerTy {
-    //     match expr {
-    //         IntExpression::Cast { ty, .. } => *ty,
-    //         IntExpression::LValue(symbol_id) => {
-    //             let TypeKind::IntType(ty) = self.symbol_table.get_symbol(*symbol_id).ty else {
-    //                 panic!("int lvalue is not an actual int type oops")
-    //             };
-    //             ty
-    //         }
-    //         IntExpression::IntegerLiteral(_) => IntegerTy {
-    //             bits: IntBitWidth::I64,
-    //             sign: false,
-    //         },
-    //         IntExpression::BooleanLiteral(_) => IntegerTy {
-    //             bits: IntBitWidth::I8,
-    //             sign: false,
-    //         },
-    //         IntExpression::UnaryOperation(UnaryOperator::Negative, expr) => {
-    //             let mut ty = self.get_int_expr_type(expr);
-    //             ty.sign = true;
-    //             ty
-    //         }
-    //         IntExpression::UnaryOperation(_, expr) => self.get_int_expr_type(expr),
-    //         IntExpression::FunctionCall(_, _) => todo!(),
-    //         IntExpression::Assignment(_, expr) => self.get_int_expr_type(expr),
-    //         IntExpression::BinaryOperation(l, _, r) => {
-    //             let l = self.get_int_expr_type(l);
-    //             let r = self.get_int_expr_type(r);
-    //             let bit_width = l.bits.max(r.bits);
-    //             let signed = l.sign;
-    //             IntegerTy {
-    //                 bits: bit_width,
-    //                 sign: signed,
-    //             }
-    //         }
-    //     }
-    // }
 }
+
+// pub fn cast_to_int(&mut self, expr: ExpressionEnum) -> Result<IntExpression, SemanticError> {
+//     match expr {
+//         ExpressionEnum::IntExpression(expr) => Ok(expr),
+//         ExpressionEnum::FloatExpression(expr) => Ok(IntExpression::Cast {
+//             ty: IntegerTy {
+//                 bits: IntBitWidth::I8,
+//                 sign: false,
+//             },
+//             expr: Box::new(ExpressionEnum::FloatExpression(expr)),
+//         }),
+//     }
+// }
+//

@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use crate::span::Span;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenKind {
     Identifier(String),
@@ -32,8 +34,7 @@ impl PartialEq<char> for Token {
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct Token {
     pub kind: TokenKind,
-    pub col: usize,
-    pub row: usize,
+    pub span: Span,
 }
 
 impl PartialEq<TokenKind> for Token {

@@ -1,15 +1,14 @@
-mod ast;
 // mod codegen;
+mod ast;
 mod lexer;
-mod parser;
 mod semantic;
-// mod symbol;
+mod span;
 mod token;
 
 // use codegen::ModuleProvider;
+use ast::parser::Parser;
 use lexer::Lexer;
-use parser::Parser;
-use semantic::from_ast::Context;
+use semantic::from_ast::Analyzer;
 use token::Token;
 
 use std::{
@@ -24,16 +23,20 @@ fn main() {
         let lexer = Lexer::new(contents.chars());
         let tokens: Vec<Token> = lexer.into_iter().collect();
 
-        let mut parser = Parser::new(tokens.into_iter()).unwrap();
+        let mut parser = Parser::new(tokens.into_iter()).expect("Stream is empty");
 
-        match parser.module() {
-            Ok(module) => {
-                let mut context = Context::default();
-                let module = context.build_module(module);
-                dbg!(module);
-            }
-            Err(err) => println!("{:?}", err),
-        }
+        let ast = match parser.module() {
+            Ok(module) => module,
+            Err(err) => return println!("Syntax error: {}", err),
+        };
+
+        let mut analyzer = Analyzer::default();
+        let module = match analyzer.build_module(ast) {
+            Ok(module) => module,
+            Err(err) => return println!("Semantic error: {}", err),
+        };
+
+        dbg!(module);
     } else {
         let stdin = io::stdin();
         let mut buf = String::new();
