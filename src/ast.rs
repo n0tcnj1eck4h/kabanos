@@ -43,9 +43,9 @@ pub struct Parameter {
 #[derive(Debug, Clone)]
 pub enum Statement {
     Block(Vec<Statement>),
-    Conditional(Expression, Vec<Statement>, Option<Vec<Statement>>),
+    Conditional(Expression, Box<Statement>, Option<Box<Statement>>),
     LocalVar(String, Option<String>, Option<Expression>),
-    Loop(Expression, Vec<Statement>),
+    Loop(Expression, Box<Statement>),
     Expression(Expression),
     Return(Option<Expression>),
 }
@@ -53,7 +53,7 @@ pub enum Statement {
 #[derive(Debug, Clone)]
 pub enum Expression {
     IntegerLiteral(u64),
-    FloatingPointLiteral(f64),
+    FloatLiteral(f64),
     StringLiteral(String),
     BooleanLiteral(bool),
     Identifier(String),

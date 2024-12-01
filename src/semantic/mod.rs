@@ -6,13 +6,13 @@ pub mod primitive;
 pub mod symbol;
 pub mod types;
 
-use expression::{ExpressionEnum, IntExpression};
-use symbol::{SymbolID, SymbolTable};
-use types::TypeEnum;
+use expression::Expression;
+use symbol::LocalVarID;
+use types::TypeKind;
 
 #[derive(Debug)]
 pub struct Scope {
-    pub symbol: SymbolID,
+    pub symbol: LocalVarID,
     pub body: Vec<Statement>,
 }
 
@@ -26,7 +26,7 @@ pub struct Module {
 pub struct FunctionDeclaration {
     pub name: String,
     pub params: Vec<Parameter>,
-    pub ty: Option<TypeEnum>,
+    pub ty: Option<TypeKind>,
 }
 
 #[derive(Debug)]
@@ -38,15 +38,15 @@ pub struct FunctionDefinition {
 #[derive(Debug)]
 pub struct Parameter {
     pub name: String,
-    pub ty: TypeEnum,
+    pub ty: TypeKind,
 }
 
 #[derive(Debug)]
 pub enum Statement {
-    Conditional(IntExpression, Vec<Statement>, Option<Vec<Statement>>),
-    VoidFunctionCall(String, Vec<ExpressionEnum>),
-    Loop(IntExpression, Vec<Statement>),
-    Return(Option<ExpressionEnum>),
-    Expression(ExpressionEnum),
+    Conditional(Expression, Vec<Statement>, Option<Vec<Statement>>),
+    VoidFunctionCall(String, Vec<Expression>),
+    Loop(Expression, Vec<Statement>),
+    Return(Option<Expression>),
+    Expression(Expression),
     Block(Scope),
 }

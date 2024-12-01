@@ -1,19 +1,17 @@
-use std::collections::{HashMap, VecDeque};
-
-use super::types::TypeEnum;
+use super::types::TypeKind;
 
 #[derive(Debug)]
-pub struct Symbol {
+pub struct Variable {
     pub identifier: String,
-    pub ty: TypeEnum,
+    pub ty: TypeKind,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SymbolID(usize);
+pub struct LocalVarID(usize);
 
 #[derive(Default, Debug)]
 pub struct SymbolTable {
-    symbols: Vec<Symbol>,
+    locals: Vec<Variable>,
     // symbol_lookup: HashMap<String, SymbolID>,
 }
 
@@ -26,10 +24,10 @@ impl SymbolTable {
     //     self.scope_stack.pop_back().expect("Popped too many stacks")
     // }
 
-    pub fn push_local_symbol(&mut self, symbol: Symbol) -> SymbolID {
+    pub fn push_local_var(&mut self, symbol: Variable) -> LocalVarID {
         // let name = symbol.identifier.clone();
-        self.symbols.push(symbol);
-        let symbol_id = SymbolID(self.symbols.len() - 1);
+        self.locals.push(symbol);
+        let symbol_id = LocalVarID(self.locals.len() - 1);
         // self.symbol_lookup.insert(name, symbol_id);
         symbol_id
     }
@@ -43,7 +41,7 @@ impl SymbolTable {
     //     self.symbols.get(symbol_id.0)
     // }
 
-    pub fn get_symbol(&self, id: SymbolID) -> &Symbol {
-        self.symbols.get(id.0).expect("Unexpected SymbolID")
+    pub fn get(&self, id: LocalVarID) -> &Variable {
+        self.locals.get(id.0).expect("Unexpected SymbolID")
     }
 }

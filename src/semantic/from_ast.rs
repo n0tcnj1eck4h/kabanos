@@ -1,13 +1,14 @@
-use std::str::FromStr;
+use std::{collections::VecDeque, str::FromStr};
 
-use crate::{ast, semantic::operator::UnaryOperator};
+use crate::ast;
 
 use super::{
     error::SemanticError,
-    expression::{ExpressionEnum, IntExpression},
+    expression::{Expression, ExpressionKind, LValue},
+    operator::UnaryOperator,
     primitive::Primitive,
-    symbol::{Symbol, SymbolID, SymbolTable},
-    types::{FloatType, IntBitWidths, IntegerType, TypeEnum},
+    symbol::{LocalVarID, SymbolTable, Variable},
+    types::{FloatTy, IntBitWidth, IntegerTy, TypeKind},
     FunctionDeclaration, FunctionDefinition, Module, Parameter, Scope, Statement,
 };
 
@@ -16,56 +17,31 @@ pub struct Context {
     symbol_table: SymbolTable,
 }
 
-// struct StatementBuilder<'ctx> {
-//     context: &'ctx mut Context,
-//     stmt_iter_stack: Vec<Box<dyn Iterator<Item = ast::Statement> + 'ctx>>,
-//     expected_return_type: Option<TypeEnum>,
-// }
-//
-// impl<'ctx> StatementBuilder<'ctx> {
-//     fn new<I: IntoIterator<Item = ast::Statement> + 'ctx>(
-//         statement_iter: I,
-//         context: &'ctx mut Context,
-//         expected_return_type: Option<TypeEnum>,
-//     ) -> Self {
-//         let ptr: Box<dyn Iterator<Item = ast::Statement>> = Box::new(statement_iter.into_iter());
-//
-//         let mut stmt_iter_stack = Vec::new();
-//         stmt_iter_stack.push(ptr);
-//         Self {
-//             context,
-//             stmt_iter_stack,
-//             expected_return_type,
-//         }
-//     }
-//
-//     fn nest<'a: 'ctx, I: IntoIterator<Item = ast::Statement> + 'ctx>(
-//         &'a mut self,
-//         iter: I,
-//     ) -> Self {
-//         Self {
-//             context: self.context,
-//             stmt_iter_stack: vec![Box::new(iter.into_iter())],
-//             expected_return_type: self.expected_return_type,
-//         }
-//     }
-// }
-//
-// impl<'ctx> Iterator for StatementBuilder<'ctx> {
-//     type Item = Result<Statement, SemanticError>;
-//     fn next(&mut self) -> Option<Self::Item> {
-//         let statement = if let Some(top_iter) = self.stmt_iter_stack.last_mut() {
-//             if let Some(statement) = top_iter.next() {
-//                 statement
-//             } else {
-//                 self.stmt_iter_stack.pop();
-//                 return self.next();
-//             }
-//         } else {
-//             return None;
-//         };
-//     }AHAHAHAHAH
-// }
+pub enum StatementIter {
+    Single(Option<ast::Statement>),
+    Block(std::vec::IntoIter<ast::Statement>),
+}
+
+impl Iterator for StatementIter {
+    type Item = ast::Statement;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            StatementIter::Single(statement) => statement.take(),
+            StatementIter::Block(iter) => iter.next(),
+        }
+    }
+}
+
+impl IntoIterator for ast::Statement {
+    type Item = ast::Statement;
+    type IntoIter = StatementIter;
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            Self::Block(block) => StatementIter::Block(block.into_iter()),
+            _ => StatementIter::Single(Some(self)),
+        }
+    }
+}
 
 impl Context {
     pub fn build_module(&mut self, module: ast::Module) -> Result<Module, SemanticError> {
@@ -90,7 +66,8 @@ impl Context {
     fn build_statements<I: IntoIterator<Item = ast::Statement>>(
         &mut self,
         iter: I,
-        stack: &mut Vec<SymbolID>,
+        stack: &mut Vec<LocalVarID>,
+        expected_return_ty: Option<TypeKind>,
     ) -> Result<Vec<Statement>, SemanticError> {
         let mut iter = iter.into_iter();
         let mut statements = Vec::new();
@@ -98,38 +75,59 @@ impl Context {
         while let Some(statement) = iter.next() {
             match statement {
                 ast::Statement::Conditional(expr, true_block, else_block) => {
-                    let expr = self.build_expression(expr)?;
-                    let expr = self.cast_to_int(expr)?;
+                    let expr = self.build_expression(expr, stack)?;
 
-                    let true_block = self.build_statements(true_block, stack)?;
+                    if !matches!(expr.ty, TypeKind::IntType(_)) {
+                        return Err(SemanticError::NotLogic(expr.ty));
+                    }
+
+                    let true_block =
+                        self.build_statements(*true_block, stack, expected_return_ty)?;
 
                     if let Some(else_block) = else_block {
-                        let else_block = self.build_statements(else_block, stack)?;
+                        let else_block =
+                            self.build_statements(*else_block, stack, expected_return_ty)?;
                         statements.push(Statement::Conditional(expr, true_block, Some(else_block)));
                     } else {
                         statements.push(Statement::Conditional(expr, true_block, None));
                     }
                 }
                 ast::Statement::Expression(expr) => {
-                    statements.push(Statement::Expression(self.build_expression(expr)?))
+                    statements.push(Statement::Expression(self.build_expression(expr, stack)?))
                 }
                 ast::Statement::Loop(expr, s) => {
-                    let expr = self.build_expression(expr)?;
-                    let expr = self.cast_to_int(expr)?;
-                    let s = self.build_statements(s, stack)?;
+                    let expr = self.build_expression(expr, stack)?;
+
+                    if !matches!(expr.ty, TypeKind::IntType(_)) {
+                        return Err(SemanticError::NotLogic(expr.ty));
+                    }
+
+                    let s = self.build_statements(*s, stack, expected_return_ty)?;
                     statements.push(Statement::Loop(expr, s));
                 }
                 ast::Statement::Block(s) => {
                     let old_len = stack.len();
-                    let s = self.build_statements(s, stack)?;
+                    let s = self.build_statements(s, stack, expected_return_ty)?;
                     stack.truncate(old_len);
                     statements.extend(s);
                 }
                 ast::Statement::Return(expr) => {
                     if let Some(expr) = expr {
-                        let expr = self.build_expression(expr)?;
+                        let expr = self.build_expression(expr, stack)?;
+                        if expected_return_ty == None {
+                            return Err(SemanticError::ReturnTypeMismatch {
+                                expected: None,
+                                recieved: Some(expr.ty),
+                            });
+                        }
                         statements.push(Statement::Return(Some(expr)));
                     } else {
+                        if expected_return_ty != None {
+                            return Err(SemanticError::ReturnTypeMismatch {
+                                expected: expected_return_ty,
+                                recieved: None,
+                            });
+                        }
                         statements.push(Statement::Return(None));
                     }
                 }
@@ -137,20 +135,20 @@ impl Context {
                 ast::Statement::LocalVar(identifier, ty, expr) => {
                     let ty = ty.expect("Implicit type not supported");
                     let primitive = Primitive::from_str(&ty).unwrap();
-                    let ty: TypeEnum = primitive.into();
+                    let ty: TypeKind = primitive.into();
 
                     if let Some(expr) = expr {
-                        let expr = self.build_expression(expr)?;
-                        let expr_ty = self.get_expression_type(&expr);
+                        let expr = self.build_expression(expr, stack)?;
+                        let expr_ty = expr.ty;
 
                         assert_eq!(ty, expr_ty);
                     };
 
-                    let symbol = Symbol { identifier, ty };
+                    let symbol = Variable { identifier, ty };
 
-                    let symbol_id = self.symbol_table.push_local_symbol(symbol);
+                    let symbol_id = self.symbol_table.push_local_var(symbol);
                     stack.push(symbol_id);
-                    let s = self.build_statements(iter, stack)?;
+                    let s = self.build_statements(iter, stack, expected_return_ty)?;
                     stack.pop();
 
                     let scope = Scope {
@@ -196,7 +194,7 @@ impl Context {
         let declaration = self.build_declaration(definition.prototype)?;
 
         let mut stack = Vec::new();
-        let body = self.build_statements(definition.body, &mut stack)?;
+        let body = self.build_statements(definition.body, &mut stack, declaration.ty)?;
 
         Ok(FunctionDefinition { declaration, body })
     }
@@ -204,65 +202,170 @@ impl Context {
     fn build_expression(
         &mut self,
         expression: ast::Expression,
-    ) -> Result<ExpressionEnum, SemanticError> {
-        todo!()
-    }
-
-    pub fn cast_to_int(&mut self, expr: ExpressionEnum) -> Result<IntExpression, SemanticError> {
-        match expr {
-            ExpressionEnum::IntExpression(expr) => Ok(expr),
-            ExpressionEnum::FloatExpression(expr) => Ok(IntExpression::Cast {
-                ty: IntegerType {
-                    bit_width: IntBitWidths::I8,
-                    signed: false,
-                },
-                expr: Box::new(ExpressionEnum::FloatExpression(expr)),
-            }),
-        }
-    }
-
-    pub fn get_expression_type(&self, expr: &ExpressionEnum) -> TypeEnum {
-        match expr {
-            ExpressionEnum::IntExpression(int_expr) => {
-                TypeEnum::IntType(self.get_int_expr_type(int_expr))
-            }
-            // TODO:
-            ExpressionEnum::FloatExpression(_) => TypeEnum::FloatType(FloatType::F32),
-        }
-    }
-
-    fn get_int_expr_type(&self, expr: &IntExpression) -> IntegerType {
-        match expr {
-            IntExpression::Cast { ty, .. } => *ty,
-            IntExpression::LValue(symbol_id) => {
-                let TypeEnum::IntType(ty) = self.symbol_table.get_symbol(*symbol_id).ty else {
-                    panic!("int lvalue is not an actual int type oops")
+        stack: &[LocalVarID],
+    ) -> Result<Expression, SemanticError> {
+        match expression {
+            // Every integer literal is an u64
+            ast::Expression::IntegerLiteral(i) => {
+                let kind = ExpressionKind::IntegerLiteral(i);
+                let ty = IntegerTy {
+                    bits: IntBitWidth::I64,
+                    sign: false,
                 };
-                ty
+                let ty = TypeKind::IntType(ty);
+
+                Ok(Expression { kind, ty })
             }
-            IntExpression::IntegerLiteral(_) => IntegerType {
-                bit_width: IntBitWidths::I64,
-                signed: false,
-            },
-            IntExpression::BooleanLiteral(_) => IntegerType {
-                bit_width: IntBitWidths::I8,
-                signed: false,
-            },
-            IntExpression::UnaryOperation(UnaryOperator::Negative, expr) => {
-                let mut ty = self.get_int_expr_type(expr);
-                ty.signed = true;
-                ty
+
+            // Every float literal is f64
+            ast::Expression::FloatLiteral(f) => {
+                let kind = ExpressionKind::FloatLiteral(f);
+                let ty = TypeKind::FloatType(FloatTy::F64);
+
+                Ok(Expression { kind, ty })
             }
-            IntExpression::UnaryOperation(_, expr) => self.get_int_expr_type(expr),
-            IntExpression::FunctionCall(_, _) => todo!(),
-            IntExpression::Assignment(_, expr) => self.get_int_expr_type(expr),
-            IntExpression::BinaryOperation(l, _, r) => {
-                let l = self.get_int_expr_type(l);
-                let r = self.get_int_expr_type(r);
-                let bit_width = l.bit_width.max(r.bit_width);
-                let signed = l.signed;
-                IntegerType { bit_width, signed }
+            ast::Expression::StringLiteral(_) => panic!("String literals are not supported yet"),
+
+            // Every boolean literal is an u8
+            ast::Expression::BooleanLiteral(b) => {
+                let kind = ExpressionKind::IntegerLiteral(if b { 1 } else { 0 });
+                let ty = IntegerTy {
+                    bits: IntBitWidth::I8,
+                    sign: false,
+                };
+                let ty = TypeKind::IntType(ty);
+
+                Ok(Expression { kind, ty })
+            }
+            ast::Expression::Identifier(ident) => {
+                for s in stack.iter().copied() {
+                    let symbol = self.symbol_table.get(s);
+                    if symbol.identifier == ident {
+                        let ty = symbol.ty;
+                        let kind = ExpressionKind::LValue(LValue::LocalVar(s));
+                        let expr = Expression { ty, kind };
+                        return Ok(expr);
+                    }
+                }
+
+                Err(SemanticError::Undeclared(ident))
+            }
+            ast::Expression::BinaryOperation(left, operator, right) => {
+                let operator = operator.try_into()?;
+
+                let left = self.build_expression(*left, stack)?;
+                let right = self.build_expression(*right, stack)?;
+
+                let ty = match (left.ty, right.ty) {
+                    (TypeKind::IntType(l), TypeKind::IntType(r)) => {
+                        let sign = l.sign || r.sign;
+                        let bits = l.bits.max(r.bits);
+                        TypeKind::IntType(IntegerTy { sign, bits })
+                    }
+                    (TypeKind::FloatType(l), TypeKind::FloatType(r)) => {
+                        TypeKind::FloatType(l.max(r))
+                    }
+                    _ => {
+                        return Err(SemanticError::TypeMismatch {
+                            expected: left.ty,
+                            recieved: Some(right.ty),
+                        });
+                    }
+                };
+
+                let kind =
+                    ExpressionKind::BinaryOperation(Box::new(left), operator, Box::new(right));
+
+                Ok(Expression { kind, ty })
+            }
+            ast::Expression::UnaryOperation(operator, expression) => {
+                let operator = operator.try_into()?;
+                let expression = self.build_expression(*expression, stack)?;
+                let ty = match operator {
+                    UnaryOperator::Negative => {
+                        if let TypeKind::IntType(mut int_type) = expression.ty {
+                            int_type.sign = true;
+                            TypeKind::IntType(int_type)
+                        } else {
+                            expression.ty
+                        }
+                    }
+                    UnaryOperator::LogicNot | UnaryOperator::BitNot
+                        if matches!(expression.ty, TypeKind::IntType(_)) =>
+                    {
+                        expression.ty
+                    }
+                    _ => return Err(SemanticError::InvalidUnaryOp(operator, expression.ty)),
+                };
+
+                let kind = ExpressionKind::UnaryOperation(operator, Box::new(expression));
+
+                Ok(Expression { kind, ty })
+            }
+            ast::Expression::FunctionCall(name, args) => {
+                todo!()
             }
         }
     }
+
+    // pub fn cast_to_int(&mut self, expr: ExpressionEnum) -> Result<IntExpression, SemanticError> {
+    //     match expr {
+    //         ExpressionEnum::IntExpression(expr) => Ok(expr),
+    //         ExpressionEnum::FloatExpression(expr) => Ok(IntExpression::Cast {
+    //             ty: IntegerTy {
+    //                 bits: IntBitWidth::I8,
+    //                 sign: false,
+    //             },
+    //             expr: Box::new(ExpressionEnum::FloatExpression(expr)),
+    //         }),
+    //     }
+    // }
+    //
+    // pub fn get_expression_type(&self, expr: &ExpressionEnum) -> TypeKind {
+    //     match expr {
+    //         ExpressionEnum::IntExpression(int_expr) => {
+    //             TypeKind::IntType(self.get_int_expr_type(int_expr))
+    //         }
+    //         // TODO:
+    //         ExpressionEnum::FloatExpression(_) => TypeKind::FloatType(FloatTy::F32),
+    //     }
+    // }
+    //
+    // fn get_int_expr_type(&self, expr: &IntExpression) -> IntegerTy {
+    //     match expr {
+    //         IntExpression::Cast { ty, .. } => *ty,
+    //         IntExpression::LValue(symbol_id) => {
+    //             let TypeKind::IntType(ty) = self.symbol_table.get_symbol(*symbol_id).ty else {
+    //                 panic!("int lvalue is not an actual int type oops")
+    //             };
+    //             ty
+    //         }
+    //         IntExpression::IntegerLiteral(_) => IntegerTy {
+    //             bits: IntBitWidth::I64,
+    //             sign: false,
+    //         },
+    //         IntExpression::BooleanLiteral(_) => IntegerTy {
+    //             bits: IntBitWidth::I8,
+    //             sign: false,
+    //         },
+    //         IntExpression::UnaryOperation(UnaryOperator::Negative, expr) => {
+    //             let mut ty = self.get_int_expr_type(expr);
+    //             ty.sign = true;
+    //             ty
+    //         }
+    //         IntExpression::UnaryOperation(_, expr) => self.get_int_expr_type(expr),
+    //         IntExpression::FunctionCall(_, _) => todo!(),
+    //         IntExpression::Assignment(_, expr) => self.get_int_expr_type(expr),
+    //         IntExpression::BinaryOperation(l, _, r) => {
+    //             let l = self.get_int_expr_type(l);
+    //             let r = self.get_int_expr_type(r);
+    //             let bit_width = l.bits.max(r.bits);
+    //             let signed = l.sign;
+    //             IntegerTy {
+    //                 bits: bit_width,
+    //                 sign: signed,
+    //             }
+    //         }
+    //     }
+    // }
 }

@@ -1,7 +1,7 @@
 use super::primitive::Primitive;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum IntBitWidths {
+pub enum IntBitWidth {
     I8 = 8,
     I16 = 16,
     I32 = 32,
@@ -9,67 +9,67 @@ pub enum IntBitWidths {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct IntegerType {
-    pub bit_width: IntBitWidths,
-    pub signed: bool,
+pub struct IntegerTy {
+    pub bits: IntBitWidth,
+    pub sign: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum FloatType {
+pub enum FloatTy {
     F32 = 32,
     F64 = 64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum TypeEnum {
-    IntType(IntegerType),
-    FloatType(FloatType),
+pub enum TypeKind {
+    IntType(IntegerTy),
+    FloatType(FloatTy),
 }
 
-impl From<Primitive> for TypeEnum {
+impl From<Primitive> for TypeKind {
     fn from(value: Primitive) -> Self {
-        use IntBitWidths::*;
-        use TypeEnum::IntType;
+        use IntBitWidth::*;
+        use TypeKind::IntType;
 
         match value {
-            Primitive::Bool => IntType(IntegerType {
-                bit_width: I8,
-                signed: false,
+            Primitive::Bool => IntType(IntegerTy {
+                bits: I8,
+                sign: false,
             }),
-            Primitive::I8 => IntType(IntegerType {
-                bit_width: I8,
-                signed: true,
+            Primitive::I8 => IntType(IntegerTy {
+                bits: I8,
+                sign: true,
             }),
-            Primitive::I16 => IntType(IntegerType {
-                bit_width: I16,
-                signed: true,
+            Primitive::I16 => IntType(IntegerTy {
+                bits: I16,
+                sign: true,
             }),
-            Primitive::I32 => IntType(IntegerType {
-                bit_width: I32,
-                signed: true,
+            Primitive::I32 => IntType(IntegerTy {
+                bits: I32,
+                sign: true,
             }),
-            Primitive::I64 => IntType(IntegerType {
-                bit_width: I64,
-                signed: true,
+            Primitive::I64 => IntType(IntegerTy {
+                bits: I64,
+                sign: true,
             }),
-            Primitive::U8 => IntType(IntegerType {
-                bit_width: I8,
-                signed: false,
+            Primitive::U8 => IntType(IntegerTy {
+                bits: I8,
+                sign: false,
             }),
-            Primitive::U16 => IntType(IntegerType {
-                bit_width: I16,
-                signed: false,
+            Primitive::U16 => IntType(IntegerTy {
+                bits: I16,
+                sign: false,
             }),
-            Primitive::U32 => IntType(IntegerType {
-                bit_width: I32,
-                signed: false,
+            Primitive::U32 => IntType(IntegerTy {
+                bits: I32,
+                sign: false,
             }),
-            Primitive::U64 => IntType(IntegerType {
-                bit_width: I64,
-                signed: false,
+            Primitive::U64 => IntType(IntegerTy {
+                bits: I64,
+                sign: false,
             }),
-            Primitive::F32 => TypeEnum::FloatType(FloatType::F32),
-            Primitive::F64 => TypeEnum::FloatType(FloatType::F64),
+            Primitive::F32 => TypeKind::FloatType(FloatTy::F32),
+            Primitive::F64 => TypeKind::FloatType(FloatTy::F64),
         }
     }
 }

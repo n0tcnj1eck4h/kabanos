@@ -336,7 +336,7 @@ where
             }
             TokenKind::FloatingPointLiteral(float) => {
                 self.advance()?;
-                Ok(Expression::FloatingPointLiteral(float))
+                Ok(Expression::FloatLiteral(float))
             }
             TokenKind::BooleanLiteral(boolean) => {
                 self.advance()?;
