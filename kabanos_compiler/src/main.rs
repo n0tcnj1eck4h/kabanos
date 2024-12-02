@@ -1,15 +1,10 @@
 // mod codegen;
-mod ast;
-mod lexer;
-mod semantic;
-mod span;
-mod token;
 
 // use codegen::ModuleProvider;
-use ast::parser::Parser;
-use lexer::Lexer;
-use semantic::from_ast::Analyzer;
-use token::Token;
+use kabanos_common::ast::parser::Parser;
+use kabanos_common::lexer::Lexer;
+use kabanos_common::semantic::from_ast::Analyzer;
+use kabanos_common::token::Token;
 
 use std::{
     env::args_os,
