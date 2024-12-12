@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use crate::ast;
 
@@ -14,7 +14,9 @@ use super::{
 
 #[derive(Default)]
 pub struct Analyzer {
-    symbol_table: SymbolTable,
+    locals: SymbolTable,
+    function_defs: HashMap<String, FunctionDefinition>,
+    function_decls: HashMap<String, FunctionDeclaration>,
 }
 
 pub enum StatementIter {
@@ -44,22 +46,27 @@ impl IntoIterator for ast::Statement {
 }
 
 impl Analyzer {
-    pub fn build_module(&mut self, module: ast::Module) -> Result<Module, SemanticError> {
-        let mut declarations = Vec::new();
+    pub fn build_module(module: ast::Module) -> Result<Module, SemanticError> {
+        let mut context = Analyzer::default();
+
         for s in module.fn_declarations {
-            let s = self.build_declaration(s)?;
-            declarations.push(s);
+            let s = context.build_declaration(s)?;
+            context.function_decls.insert(s.name.clone(), s);
         }
 
-        let mut functions = Vec::new();
+        for s in module.fn_definitions.iter() {
+            let s = context.build_declaration(s.prototype.clone())?;
+            context.function_decls.insert(s.name.clone(), s);
+        }
+
         for s in module.fn_definitions {
-            let s = self.build_definition(s)?;
-            functions.push(s);
+            let s = context.build_definition(s)?;
+            context.function_defs.insert(s.declaration.name.clone(), s);
         }
 
         Ok(Module {
-            functions,
-            declarations,
+            function_defs: context.function_defs,
+            function_decls: context.function_decls,
         })
     }
 
@@ -98,9 +105,10 @@ impl Analyzer {
                 ast::Statement::Loop(expr, s) => {
                     let expr = self.build_expression(expr, stack)?;
 
-                    if !matches!(expr.ty, TypeKind::IntType(_)) {
-                        return Err(SemanticError::NotLogic(expr.ty));
-                    }
+                    match expr.ty {
+                        TypeKind::IntType(_) => {}
+                        _ => return Err(SemanticError::NotLogic(expr.ty)),
+                    };
 
                     let s = self.build_statements(*s, stack, expected_return_ty)?;
                     statements.push(Statement::Loop(expr, s));
@@ -146,7 +154,7 @@ impl Analyzer {
 
                     let symbol = Variable { identifier, ty };
 
-                    let symbol_id = self.symbol_table.push_local_var(symbol);
+                    let symbol_id = self.locals.push_local_var(symbol);
                     stack.push(symbol_id);
                     let s = self.build_statements(iter, stack, expected_return_ty)?;
                     stack.pop();
@@ -241,7 +249,7 @@ impl Analyzer {
             }
             ast::ExpressionKind::Identifier(ident) => {
                 for s in stack.iter().copied() {
-                    let symbol = self.symbol_table.get(s);
+                    let symbol = self.locals.get(s);
                     if symbol.identifier == ident {
                         let ty = symbol.ty;
                         let kind = ExpressionKind::LValue(LValue::LocalVar(s));

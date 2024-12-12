@@ -12,7 +12,7 @@ pub struct Module {
     pub globals: Vec<GlobalVariableDefintion>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionPrototype {
     pub name: String,
     pub parameters: Vec<Parameter>,
@@ -37,7 +37,7 @@ pub struct Import {
     pub path: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Parameter {
     pub ty: String,
     pub name: String,

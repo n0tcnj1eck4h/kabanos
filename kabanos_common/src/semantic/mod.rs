@@ -6,6 +6,8 @@ pub mod primitive;
 pub mod symbol;
 pub mod types;
 
+use std::collections::HashMap;
+
 use expression::Expression;
 use symbol::LocalVarID;
 use types::TypeKind;
@@ -18,8 +20,8 @@ pub struct Scope {
 
 #[derive(Debug)]
 pub struct Module {
-    pub declarations: Vec<FunctionDeclaration>,
-    pub functions: Vec<FunctionDefinition>,
+    pub function_defs: HashMap<String, FunctionDefinition>,
+    pub function_decls: HashMap<String, FunctionDeclaration>,
 }
 
 #[derive(Debug)]

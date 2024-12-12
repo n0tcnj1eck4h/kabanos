@@ -25,8 +25,7 @@ fn main() {
             Err(err) => return println!("Syntax error: {}", err),
         };
 
-        let mut analyzer = Analyzer::default();
-        let module = match analyzer.build_module(ast) {
+        let module = match Analyzer::build_module(ast) {
             Ok(module) => module,
             Err(err) => return println!("Semantic error: {}", err),
         };

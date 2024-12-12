@@ -8,6 +8,7 @@ use super::{operator::UnaryOperator, types::TypeKind};
 pub enum SemanticError {
     NotBinOp(Operator),
     NotUnaryOp(Operator),
+    FunctionRedefinition(String),
     NotPrimitive(String),
     LValue(ast::Expression),
     VoidOperation,
@@ -54,6 +55,9 @@ impl Display for SemanticError {
             ),
             SemanticError::FunctionCallsNotImplemented => {
                 write!(f, "Function calls are not implemented yet")
+            }
+            SemanticError::FunctionRedefinition(_) => {
+                write!(f, "Function redefined")
             }
         }
     }
