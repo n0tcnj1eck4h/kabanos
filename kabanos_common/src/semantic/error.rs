@@ -12,7 +12,6 @@ pub enum SemanticError {
     NotPrimitive(String),
     LValue(ast::Expression),
     VoidOperation,
-    FunctionCallsNotImplemented,
     InvalidUnaryOp(UnaryOperator, TypeKind),
     Undeclared(String),
     ReturnTypeMismatch {
@@ -53,9 +52,6 @@ impl Display for SemanticError {
                 "Invalid unary operation {:?} on type {:?}",
                 unary_operator, type_kind
             ),
-            SemanticError::FunctionCallsNotImplemented => {
-                write!(f, "Function calls are not implemented yet")
-            }
             SemanticError::FunctionRedefinition(_) => {
                 write!(f, "Function redefined")
             }

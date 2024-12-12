@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, mem, str::FromStr};
 
 use crate::ast;
 
@@ -9,11 +9,11 @@ use super::{
     primitive::Primitive,
     symbol::{LocalVarID, SymbolTable, Variable},
     types::{FloatTy, IntBitWidth, IntegerTy, TypeKind},
-    FunctionDeclaration, FunctionDefinition, Module, Parameter, Scope, Statement,
+    FunctionDeclaration, FunctionDefinition, Parameter, Scope, Statement,
 };
 
-#[derive(Default)]
-pub struct Analyzer {
+#[derive(Default, Debug)]
+pub struct Module {
     locals: SymbolTable,
     function_defs: HashMap<String, FunctionDefinition>,
     function_decls: HashMap<String, FunctionDeclaration>,
@@ -45,9 +45,9 @@ impl IntoIterator for ast::Statement {
     }
 }
 
-impl Analyzer {
+impl Module {
     pub fn build_module(module: ast::Module) -> Result<Module, SemanticError> {
-        let mut context = Analyzer::default();
+        let mut context = Module::default();
 
         for s in module.fn_declarations {
             let s = context.build_declaration(s)?;
@@ -64,10 +64,7 @@ impl Analyzer {
             context.function_defs.insert(s.declaration.name.clone(), s);
         }
 
-        Ok(Module {
-            function_defs: context.function_defs,
-            function_decls: context.function_decls,
-        })
+        Ok(context)
     }
 
     fn build_statements<I: IntoIterator<Item = ast::Statement>>(
@@ -100,7 +97,19 @@ impl Analyzer {
                     }
                 }
                 ast::Statement::Expression(expr) => {
-                    statements.push(Statement::Expression(self.build_expression(expr, stack)?))
+                    if let ast::ExpressionKind::FunctionCall(ref name, ref args) = expr.kind {
+                        let fn_decl = self
+                            .function_decls
+                            .get(name)
+                            .ok_or_else(|| SemanticError::Undeclared(name.clone()))?
+                            .clone();
+                        if fn_decl.ty == None {
+                            let args = self.build_call_args(&fn_decl, args.clone(), stack)?;
+                            statements.push(Statement::VoidFunctionCall(fn_decl.clone(), args));
+                            continue;
+                        }
+                    }
+                    statements.push(Statement::Expression(self.build_expression(expr, stack)?));
                 }
                 ast::Statement::Loop(expr, s) => {
                     let expr = self.build_expression(expr, stack)?;
@@ -141,8 +150,8 @@ impl Analyzer {
                 }
 
                 ast::Statement::LocalVar(identifier, ty, expr) => {
-                    let ty = ty.expect("Implicit type not supported");
-                    let primitive = Primitive::from_str(&ty).unwrap();
+                    let ty_str = ty.expect("Implicit type not supported");
+                    let primitive = Primitive::from_str(&ty_str).unwrap();
                     let ty: TypeKind = primitive.into();
 
                     if let Some(expr) = expr {
@@ -248,7 +257,7 @@ impl Analyzer {
                 Ok(Expression { kind, ty })
             }
             ast::ExpressionKind::Identifier(ident) => {
-                for s in stack.iter().copied() {
+                for s in stack.iter().rev().copied() {
                     let symbol = self.locals.get(s);
                     if symbol.identifier == ident {
                         let ty = symbol.ty;
@@ -311,22 +320,46 @@ impl Analyzer {
                 Ok(Expression { kind, ty })
             }
             ast::ExpressionKind::FunctionCall(name, args) => {
-                Err(SemanticError::FunctionCallsNotImplemented)
+                let fn_decl = self
+                    .function_decls
+                    .get(&name)
+                    .ok_or_else(|| SemanticError::Undeclared(name))?
+                    .clone();
+
+                let ty = fn_decl.ty.ok_or(SemanticError::VoidOperation)?;
+                let args = self.build_call_args(&fn_decl, args, stack)?;
+
+                Ok(Expression {
+                    ty,
+                    kind: ExpressionKind::FunctionCall(fn_decl, args),
+                })
             }
         }
     }
-}
 
-// pub fn cast_to_int(&mut self, expr: ExpressionEnum) -> Result<IntExpression, SemanticError> {
-//     match expr {
-//         ExpressionEnum::IntExpression(expr) => Ok(expr),
-//         ExpressionEnum::FloatExpression(expr) => Ok(IntExpression::Cast {
-//             ty: IntegerTy {
-//                 bits: IntBitWidth::I8,
-//                 sign: false,
-//             },
-//             expr: Box::new(ExpressionEnum::FloatExpression(expr)),
-//         }),
-//     }
-// }
-//
+    fn build_call_args(
+        &mut self,
+        fn_decl: &FunctionDeclaration,
+        args: impl IntoIterator<Item = ast::Expression>,
+        stack: &[LocalVarID],
+    ) -> Result<Vec<Expression>, SemanticError> {
+        let arg_results: Vec<_> = args
+            .into_iter()
+            .map(|a| self.build_expression(a, &stack))
+            .collect();
+
+        let mut args = Vec::new();
+        for (arg, param) in arg_results.into_iter().zip(fn_decl.params.iter()) {
+            let arg = arg?;
+            if arg.ty != param.ty {
+                return Err(SemanticError::TypeMismatch {
+                    expected: param.ty,
+                    recieved: Some(arg.ty),
+                });
+            }
+            args.push(arg);
+        }
+
+        Ok(args)
+    }
+}

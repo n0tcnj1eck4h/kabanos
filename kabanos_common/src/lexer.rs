@@ -101,6 +101,7 @@ where
             return match buf.as_str() {
                 "false" => self.token(TokenKind::BooleanLiteral(false)),
                 "true" => self.token(TokenKind::BooleanLiteral(true)),
+                "as" => self.token(TokenKind::Operator(Operator::As)),
                 _ => self.token(TokenKind::Identifier(buf)),
             };
         }

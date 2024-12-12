@@ -3,7 +3,7 @@
 // use codegen::ModuleProvider;
 use kabanos_common::ast::parser::Parser;
 use kabanos_common::lexer::Lexer;
-use kabanos_common::semantic::from_ast::Analyzer;
+use kabanos_common::semantic::from_ast::Module;
 use kabanos_common::token::Token;
 
 use std::{
@@ -25,7 +25,7 @@ fn main() {
             Err(err) => return println!("Syntax error: {}", err),
         };
 
-        let module = match Analyzer::build_module(ast) {
+        let module = match Module::build_module(ast) {
             Ok(module) => module,
             Err(err) => return println!("Semantic error: {}", err),
         };

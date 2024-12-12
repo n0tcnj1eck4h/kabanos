@@ -1,7 +1,7 @@
 use super::{
     operator::{BinaryOperator, UnaryOperator},
     types::TypeKind,
-    LocalVarID,
+    FunctionDeclaration, LocalVarID,
 };
 
 #[derive(Debug, Clone)]
@@ -23,7 +23,8 @@ pub enum ExpressionKind {
     IntegerLiteral(u64),
     FloatLiteral(f64),
     UnaryOperation(UnaryOperator, Box<Expression>),
-    FunctionCall(String, Vec<Expression>),
+    FunctionCall(FunctionDeclaration, Vec<Expression>),
     Assignment(LValue, Box<Expression>),
     BinaryOperation(Box<Expression>, BinaryOperator, Box<Expression>),
+    Cast(Box<Expression>, TypeKind),
 }

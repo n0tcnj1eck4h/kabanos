@@ -18,13 +18,7 @@ pub struct Scope {
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug)]
-pub struct Module {
-    pub function_defs: HashMap<String, FunctionDefinition>,
-    pub function_decls: HashMap<String, FunctionDeclaration>,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionDeclaration {
     pub name: String,
     pub params: Vec<Parameter>,
@@ -37,7 +31,7 @@ pub struct FunctionDefinition {
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Parameter {
     pub name: String,
     pub ty: TypeKind,
@@ -46,7 +40,7 @@ pub struct Parameter {
 #[derive(Debug)]
 pub enum Statement {
     Conditional(Expression, Vec<Statement>, Option<Vec<Statement>>),
-    VoidFunctionCall(String, Vec<Expression>),
+    VoidFunctionCall(FunctionDeclaration, Vec<Expression>),
     Loop(Expression, Vec<Statement>),
     Return(Option<Expression>),
     Expression(Expression),

@@ -2,6 +2,7 @@
 name = "kabanos_compiler"
 version = "0.1.0"
 edition = "2021"
+default-run = "kabanos_compiler"
 
 [dependencies]
 kabanos_common = { path = "../kabanos_common"}
