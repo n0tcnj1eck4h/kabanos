@@ -14,7 +14,7 @@ pub struct ExpressionBuilder<'a> {
     pub expected_ty: Option<TypeKind>,
 }
 
-impl<'a> ExpressionBuilder<'a> {
+impl ExpressionBuilder<'_> {
     pub fn build_expression(
         &self,
         expression: ast::Expression,
@@ -24,8 +24,8 @@ impl<'a> ExpressionBuilder<'a> {
             ast::ExpressionKind::FloatLiteral(f) => self.build_float_literal(f),
             ast::ExpressionKind::BooleanLiteral(b) => self.build_boolean_literal(b),
             ast::ExpressionKind::Identifier(ident) => self.build_identifier(ident),
-            ast::ExpressionKind::BinaryOp(left, op, right) => self.build_binop(left, op, right),
-            ast::ExpressionKind::UnaryOperation(op, expr) => self.build_unary_operation(op, expr),
+            ast::ExpressionKind::BinaryOp(left, op, right) => self.build_binop(*left, op, *right),
+            ast::ExpressionKind::UnaryOperation(op, expr) => self.build_unary_operation(op, *expr),
             ast::ExpressionKind::FunctionCall(name, args) => self.build_function_call(name, args),
             ast::ExpressionKind::StringLiteral(_) => {
                 panic!("String literals are not supported yet")
@@ -105,10 +105,10 @@ impl<'a> ExpressionBuilder<'a> {
     fn build_unary_operation(
         &self,
         op: Operator,
-        expr: Box<ast::Expression>,
+        expr: ast::Expression,
     ) -> Result<Expression, SemanticError> {
         let operator = op.try_into()?;
-        let expression = self.build_expression(*expr)?;
+        let expression = self.build_expression(expr)?;
         let ty = match operator {
             UnaryOperator::Negative => {
                 if let TypeKind::IntType(mut int_type) = expression.ty {
@@ -138,7 +138,7 @@ impl<'a> ExpressionBuilder<'a> {
         let fn_id = self
             .symbol_table
             .get_function_id_by_name(&name)
-            .ok_or_else(|| SemanticError::Undeclared(name))?;
+            .ok_or(SemanticError::Undeclared(name))?;
 
         let fn_decl = self.symbol_table.get_function(fn_id);
         if let Some(expected_ty) = self.expected_ty {
@@ -159,7 +159,7 @@ impl<'a> ExpressionBuilder<'a> {
 
         let args: Result<Vec<_>, _> = args
             .into_iter()
-            .zip(params.into_iter())
+            .zip(params)
             .map(|(arg, param)| self.build_expression_with_type(arg, Some(param.ty)))
             .collect();
 
@@ -175,7 +175,7 @@ impl<'a> ExpressionBuilder<'a> {
             sign: false,
         });
 
-        let ty = self.expected_ty.unwrap_or(default_int_type.clone());
+        let ty = self.expected_ty.unwrap_or(default_int_type);
 
         if let TypeKind::IntType(_) = ty {
             Ok(Expression { kind, ty })
@@ -189,17 +189,17 @@ impl<'a> ExpressionBuilder<'a> {
 
     fn build_binop(
         &self,
-        left: Box<ast::Expression>,
+        left: ast::Expression,
         op: Operator,
-        right: Box<ast::Expression>,
+        right: ast::Expression,
     ) -> Result<Expression, SemanticError> {
         let op = op.try_into()?;
 
         use BinaryOperator::*;
 
-        let left = self.build_expression(*left)?;
+        let left = self.build_expression(left)?;
         let ty = left.ty;
-        let right = self.build_expression_with_type(*right, Some(left.ty))?;
+        let right = self.build_expression_with_type(right, Some(left.ty))?;
 
         let (left, op, right, ty) = match op {
             Equal | Less | Greater | LessOrEqual | GreaterOrEqual | NotEqual => {

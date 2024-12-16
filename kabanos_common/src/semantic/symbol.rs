@@ -53,7 +53,7 @@ impl SymbolTable {
             return Err(SemanticError::SignatureMismatch);
         }
 
-        return Ok(Some(*my_decl_id));
+        Ok(Some(*my_decl_id))
     }
 
     pub fn get_function_id_by_name(&self, name: &str) -> Option<FunctionID> {

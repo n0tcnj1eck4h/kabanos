@@ -107,16 +107,15 @@ impl Module {
                         let fn_id = self
                             .symbol_table
                             .get_function_id_by_name(name)
-                            .ok_or_else(|| SemanticError::Undeclared(name.clone()))?
-                            .clone();
+                            .ok_or_else(|| SemanticError::Undeclared(name.clone()))?;
                         let fn_decl = self.symbol_table.get_function(fn_id);
-                        if fn_decl.ty == None {
+                        if fn_decl.ty.is_none() {
                             let params = &fn_decl.params;
                             if params.len() != args.len() {
                                 return Err(SemanticError::WrongArgumentCount);
                             }
                             let args: Result<Vec<_>, _> = params
-                                .into_iter()
+                                .iter()
                                 .zip(args)
                                 .map(|(param, arg)| {
                                     self.build_expression(arg.clone(), Some(param.ty), stack)
@@ -193,7 +192,7 @@ impl Module {
             }
         }
 
-        return Ok(statements);
+        Ok(statements)
     }
 
     fn build_expression(

@@ -191,9 +191,9 @@ where
         };
 
         if let Some(op) = op {
-            return self.token(TokenKind::Operator(op));
+            self.token(TokenKind::Operator(op))
         } else {
-            return self.token(TokenKind::Atom(ch));
+            self.token(TokenKind::Atom(ch))
         }
     }
 }

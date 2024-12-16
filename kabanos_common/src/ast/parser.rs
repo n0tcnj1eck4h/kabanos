@@ -48,7 +48,7 @@ where
             self.advance()?;
             Ok(())
         } else {
-            return self.error();
+            self.error()
         }
     }
 
@@ -136,10 +136,10 @@ where
             return self.error();
         }
 
-        return Ok(Composite {
+        Ok(Composite {
             name: type_name,
             fields,
-        });
+        })
     }
 
     fn param_list(&mut self) -> Result<Vec<Parameter>, ParsingError> {
@@ -226,11 +226,11 @@ where
         };
 
         self.expect(TokenKind::Atom(';'))?;
-        return Ok(Statement::LocalVar(
+        Ok(Statement::LocalVar(
             variable_name,
             explicit_type,
             initial_value,
-        ));
+        ))
     }
 
     pub fn global_var(&mut self) -> Result<GlobalVariableDefintion, ParsingError> {
@@ -432,7 +432,7 @@ where
             return Ok(FunctionDefinition { prototype, body });
         }
 
-        return self.error();
+        self.error()
     }
 
     fn function_declaration(&mut self) -> Result<FunctionPrototype, ParsingError> {

@@ -71,7 +71,7 @@ impl FromStr for Keyword {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        return match s {
+        match s {
             "if" => Ok(Keyword::IF),
             "else" => Ok(Keyword::ELSE),
             "fn" => Ok(Keyword::FUNCTION),
@@ -83,7 +83,7 @@ impl FromStr for Keyword {
             "while" => Ok(Keyword::WHILE),
             "return" => Ok(Keyword::RETURN),
             _ => Err(()),
-        };
+        }
     }
 }
 

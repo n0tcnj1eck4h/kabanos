@@ -1,8 +1,7 @@
 use super::{
     operator::{BinaryOperator, UnaryOperator},
     symbol::FunctionID,
-    types::TypeKind,
-    FunctionDeclaration, VariableID,
+    types::TypeKind, VariableID,
 };
 
 #[derive(Debug, Clone)]
