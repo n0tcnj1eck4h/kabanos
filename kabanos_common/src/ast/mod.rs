@@ -66,7 +66,7 @@ pub enum ExpressionKind {
     StringLiteral(String),
     BooleanLiteral(bool),
     Identifier(String),
-    BinaryOperation(Box<Expression>, Operator, Box<Expression>),
+    BinaryOp(Box<Expression>, Operator, Box<Expression>),
     UnaryOperation(Operator, Box<Expression>),
     FunctionCall(String, Vec<Expression>),
 }

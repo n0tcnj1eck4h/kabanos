@@ -3,11 +3,6 @@
 
 extern fn putchar(i32 c): i32;
 
-fn main(): i32 {
-  print_ascii();
-  return 0;
-}
-
 fn print_ascii() {
   let i: i32 = 0;
 
@@ -17,6 +12,11 @@ fn print_ascii() {
   }
 
   return;
+}
+
+fn main(): i32 {
+  print_ascii();
+  return 0;
 }
 
 fn fibonacci(i32 n): i32 {

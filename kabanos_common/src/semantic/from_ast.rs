@@ -1,22 +1,20 @@
-use std::{collections::HashMap, mem, str::FromStr};
+use std::str::FromStr;
 
 use crate::ast;
 
 use super::{
     error::SemanticError,
     expression::{Expression, ExpressionKind, LValue},
-    operator::UnaryOperator,
+    expression_builder::ExpressionBuilder,
     primitive::Primitive,
-    symbol::{LocalVarID, SymbolTable, Variable},
-    types::{FloatTy, IntBitWidth, IntegerTy, TypeKind},
-    FunctionDeclaration, FunctionDefinition, Parameter, Scope, Statement,
+    symbol::{SymbolTable, Variable, VariableID},
+    types::TypeKind,
+    FunctionDeclaration, Parameter, Scope, Statement,
 };
 
 #[derive(Default, Debug)]
 pub struct Module {
-    locals: SymbolTable,
-    function_defs: HashMap<String, FunctionDefinition>,
-    function_decls: HashMap<String, FunctionDeclaration>,
+    symbol_table: SymbolTable,
 }
 
 pub enum StatementIter {
@@ -50,18 +48,25 @@ impl Module {
         let mut context = Module::default();
 
         for s in module.fn_declarations {
-            let s = context.build_declaration(s)?;
-            context.function_decls.insert(s.name.clone(), s);
+            let fn_decl = context.build_declaration(s)?;
+            context.symbol_table.declare_function(fn_decl)?;
         }
 
         for s in module.fn_definitions.iter() {
             let s = context.build_declaration(s.prototype.clone())?;
-            context.function_decls.insert(s.name.clone(), s);
+            context.symbol_table.declare_function(s)?;
         }
 
         for s in module.fn_definitions {
-            let s = context.build_definition(s)?;
-            context.function_defs.insert(s.declaration.name.clone(), s);
+            let declaration = context.build_declaration(s.prototype)?;
+
+            let mut stack = Vec::new();
+            let body = context.build_statements(s.body, &mut stack, declaration.ty)?;
+            let decl_id = context
+                .symbol_table
+                .get_function_id_by_decl(&declaration)?
+                .expect("Function not forward declared");
+            context.symbol_table.define_function(decl_id, body)?;
         }
 
         Ok(context)
@@ -70,7 +75,7 @@ impl Module {
     fn build_statements<I: IntoIterator<Item = ast::Statement>>(
         &mut self,
         iter: I,
-        stack: &mut Vec<LocalVarID>,
+        stack: &mut Vec<VariableID>,
         expected_return_ty: Option<TypeKind>,
     ) -> Result<Vec<Statement>, SemanticError> {
         let mut iter = iter.into_iter();
@@ -79,7 +84,7 @@ impl Module {
         while let Some(statement) = iter.next() {
             match statement {
                 ast::Statement::Conditional(expr, true_block, else_block) => {
-                    let expr = self.build_expression(expr, stack)?;
+                    let expr = self.build_expression(expr, Some(TypeKind::Boolean), stack)?;
 
                     if !matches!(expr.ty, TypeKind::IntType(_)) {
                         return Err(SemanticError::NotLogic(expr.ty));
@@ -97,22 +102,37 @@ impl Module {
                     }
                 }
                 ast::Statement::Expression(expr) => {
+                    // Treat void funtion calls as statements
                     if let ast::ExpressionKind::FunctionCall(ref name, ref args) = expr.kind {
-                        let fn_decl = self
-                            .function_decls
-                            .get(name)
+                        let fn_id = self
+                            .symbol_table
+                            .get_function_id_by_name(name)
                             .ok_or_else(|| SemanticError::Undeclared(name.clone()))?
                             .clone();
+                        let fn_decl = self.symbol_table.get_function(fn_id);
                         if fn_decl.ty == None {
-                            let args = self.build_call_args(&fn_decl, args.clone(), stack)?;
-                            statements.push(Statement::VoidFunctionCall(fn_decl.clone(), args));
+                            let params = &fn_decl.params;
+                            if params.len() != args.len() {
+                                return Err(SemanticError::WrongArgumentCount);
+                            }
+                            let args: Result<Vec<_>, _> = params
+                                .into_iter()
+                                .zip(args)
+                                .map(|(param, arg)| {
+                                    self.build_expression(arg.clone(), Some(param.ty), stack)
+                                })
+                                .collect();
+
+                            statements.push(Statement::VoidFunctionCall(fn_decl.clone(), args?));
                             continue;
                         }
                     }
-                    statements.push(Statement::Expression(self.build_expression(expr, stack)?));
+                    statements.push(Statement::Expression(
+                        self.build_expression(expr, None, stack)?,
+                    ));
                 }
                 ast::Statement::Loop(expr, s) => {
-                    let expr = self.build_expression(expr, stack)?;
+                    let expr = self.build_expression(expr, Some(TypeKind::Boolean), stack)?;
 
                     match expr.ty {
                         TypeKind::IntType(_) => {}
@@ -128,42 +148,36 @@ impl Module {
                     stack.truncate(old_len);
                     statements.extend(s);
                 }
-                ast::Statement::Return(expr) => {
-                    if let Some(expr) = expr {
-                        let expr = self.build_expression(expr, stack)?;
-                        if expected_return_ty == None {
-                            return Err(SemanticError::ReturnTypeMismatch {
-                                expected: None,
-                                recieved: Some(expr.ty),
-                            });
-                        }
+                ast::Statement::Return(expr) => match (expr, expected_return_ty) {
+                    (Some(expr), Some(expected_return_ty)) => {
+                        let expr = self.build_expression(expr, Some(expected_return_ty), stack)?;
                         statements.push(Statement::Return(Some(expr)));
-                    } else {
-                        if expected_return_ty != None {
-                            return Err(SemanticError::ReturnTypeMismatch {
-                                expected: expected_return_ty,
-                                recieved: None,
-                            });
-                        }
+                    }
+                    (None, None) => {
                         statements.push(Statement::Return(None));
                     }
-                }
-
+                    _ => {
+                        return Err(SemanticError::ReturnTypeMismatch {
+                            expected: expected_return_ty,
+                        });
+                    }
+                },
                 ast::Statement::LocalVar(identifier, ty, expr) => {
                     let ty_str = ty.expect("Implicit type not supported");
                     let primitive = Primitive::from_str(&ty_str).unwrap();
                     let ty: TypeKind = primitive.into();
 
-                    if let Some(expr) = expr {
-                        let expr = self.build_expression(expr, stack)?;
-                        let expr_ty = expr.ty;
+                    let symbol = Variable { identifier, ty };
+                    let symbol_id = self.symbol_table.push_local_var(symbol);
 
-                        assert_eq!(ty, expr_ty);
+                    if let Some(expr) = expr {
+                        let expr = self.build_expression(expr, Some(ty), stack)?;
+                        let ty = expr.ty;
+                        let kind =
+                            ExpressionKind::Assignment(LValue::LocalVar(symbol_id), Box::new(expr));
+                        statements.push(Statement::Expression(Expression { kind, ty }));
                     };
 
-                    let symbol = Variable { identifier, ty };
-
-                    let symbol_id = self.locals.push_local_var(symbol);
                     stack.push(symbol_id);
                     let s = self.build_statements(iter, stack, expected_return_ty)?;
                     stack.pop();
@@ -180,6 +194,21 @@ impl Module {
         }
 
         return Ok(statements);
+    }
+
+    fn build_expression(
+        &self,
+        expr: ast::Expression,
+        expected_ty: Option<TypeKind>,
+        stack: &[VariableID],
+    ) -> Result<Expression, SemanticError> {
+        let experssion_builder = ExpressionBuilder {
+            stack,
+            symbol_table: &self.symbol_table,
+            expected_ty,
+        };
+
+        experssion_builder.build_expression(expr)
     }
 
     fn build_declaration(
@@ -202,164 +231,5 @@ impl Module {
         }
 
         Ok(FunctionDeclaration { name, ty, params })
-    }
-
-    fn build_definition(
-        &mut self,
-        definition: ast::FunctionDefinition,
-    ) -> Result<FunctionDefinition, SemanticError> {
-        let declaration = self.build_declaration(definition.prototype)?;
-
-        let mut stack = Vec::new();
-        let body = self.build_statements(definition.body, &mut stack, declaration.ty)?;
-
-        Ok(FunctionDefinition { declaration, body })
-    }
-
-    fn build_expression(
-        &mut self,
-        expression: ast::Expression,
-        stack: &[LocalVarID],
-    ) -> Result<Expression, SemanticError> {
-        match expression.kind {
-            // Every integer literal is an u64
-            ast::ExpressionKind::IntegerLiteral(i) => {
-                let kind = ExpressionKind::IntegerLiteral(i);
-                let ty = IntegerTy {
-                    bits: IntBitWidth::I64,
-                    sign: false,
-                };
-                let ty = TypeKind::IntType(ty);
-
-                Ok(Expression { kind, ty })
-            }
-
-            // Every float literal is f64
-            ast::ExpressionKind::FloatLiteral(f) => {
-                let kind = ExpressionKind::FloatLiteral(f);
-                let ty = TypeKind::FloatType(FloatTy::F64);
-
-                Ok(Expression { kind, ty })
-            }
-            ast::ExpressionKind::StringLiteral(_) => {
-                panic!("String literals are not supported yet")
-            }
-
-            // Every boolean literal is an u8
-            ast::ExpressionKind::BooleanLiteral(b) => {
-                let kind = ExpressionKind::IntegerLiteral(if b { 1 } else { 0 });
-                let ty = IntegerTy {
-                    bits: IntBitWidth::I8,
-                    sign: false,
-                };
-                let ty = TypeKind::IntType(ty);
-
-                Ok(Expression { kind, ty })
-            }
-            ast::ExpressionKind::Identifier(ident) => {
-                for s in stack.iter().rev().copied() {
-                    let symbol = self.locals.get(s);
-                    if symbol.identifier == ident {
-                        let ty = symbol.ty;
-                        let kind = ExpressionKind::LValue(LValue::LocalVar(s));
-                        let expr = Expression { ty, kind };
-                        return Ok(expr);
-                    }
-                }
-
-                Err(SemanticError::Undeclared(ident))
-            }
-            ast::ExpressionKind::BinaryOperation(left, op, right) => {
-                let op = op.try_into()?;
-
-                let left = self.build_expression(*left, stack)?;
-                let right = self.build_expression(*right, stack)?;
-
-                let ty = match (left.ty, right.ty) {
-                    (TypeKind::IntType(l), TypeKind::IntType(r)) => {
-                        let sign = l.sign || r.sign;
-                        let bits = l.bits.max(r.bits);
-                        TypeKind::IntType(IntegerTy { sign, bits })
-                    }
-                    (TypeKind::FloatType(l), TypeKind::FloatType(r)) => {
-                        TypeKind::FloatType(l.max(r))
-                    }
-                    _ => {
-                        return Err(SemanticError::TypeMismatch {
-                            expected: left.ty,
-                            recieved: Some(right.ty),
-                        });
-                    }
-                };
-
-                let kind = ExpressionKind::BinaryOperation(Box::new(left), op, Box::new(right));
-                Ok(Expression { kind, ty })
-            }
-            ast::ExpressionKind::UnaryOperation(operator, expression) => {
-                let operator = operator.try_into()?;
-                let expression = self.build_expression(*expression, stack)?;
-                let ty = match operator {
-                    UnaryOperator::Negative => {
-                        if let TypeKind::IntType(mut int_type) = expression.ty {
-                            int_type.sign = true;
-                            TypeKind::IntType(int_type)
-                        } else {
-                            expression.ty
-                        }
-                    }
-                    UnaryOperator::LogicNot | UnaryOperator::BitNot
-                        if matches!(expression.ty, TypeKind::IntType(_)) =>
-                    {
-                        expression.ty
-                    }
-                    _ => return Err(SemanticError::InvalidUnaryOp(operator, expression.ty)),
-                };
-
-                let kind = ExpressionKind::UnaryOperation(operator, Box::new(expression));
-
-                Ok(Expression { kind, ty })
-            }
-            ast::ExpressionKind::FunctionCall(name, args) => {
-                let fn_decl = self
-                    .function_decls
-                    .get(&name)
-                    .ok_or_else(|| SemanticError::Undeclared(name))?
-                    .clone();
-
-                let ty = fn_decl.ty.ok_or(SemanticError::VoidOperation)?;
-                let args = self.build_call_args(&fn_decl, args, stack)?;
-
-                Ok(Expression {
-                    ty,
-                    kind: ExpressionKind::FunctionCall(fn_decl, args),
-                })
-            }
-        }
-    }
-
-    fn build_call_args(
-        &mut self,
-        fn_decl: &FunctionDeclaration,
-        args: impl IntoIterator<Item = ast::Expression>,
-        stack: &[LocalVarID],
-    ) -> Result<Vec<Expression>, SemanticError> {
-        let arg_results: Vec<_> = args
-            .into_iter()
-            .map(|a| self.build_expression(a, &stack))
-            .collect();
-
-        let mut args = Vec::new();
-        for (arg, param) in arg_results.into_iter().zip(fn_decl.params.iter()) {
-            let arg = arg?;
-            if arg.ty != param.ty {
-                return Err(SemanticError::TypeMismatch {
-                    expected: param.ty,
-                    recieved: Some(arg.ty),
-                });
-            }
-            args.push(arg);
-        }
-
-        Ok(args)
     }
 }

@@ -1,12 +1,13 @@
 use super::{
     operator::{BinaryOperator, UnaryOperator},
+    symbol::FunctionID,
     types::TypeKind,
-    FunctionDeclaration, LocalVarID,
+    FunctionDeclaration, VariableID,
 };
 
 #[derive(Debug, Clone)]
 pub enum LValue {
-    LocalVar(LocalVarID),
+    LocalVar(VariableID),
     // StructField,
     // PointerDereference,
 }
@@ -22,8 +23,9 @@ pub enum ExpressionKind {
     LValue(LValue),
     IntegerLiteral(u64),
     FloatLiteral(f64),
+    BooleanLiteral(bool),
     UnaryOperation(UnaryOperator, Box<Expression>),
-    FunctionCall(FunctionDeclaration, Vec<Expression>),
+    FunctionCall(FunctionID, Vec<Expression>),
     Assignment(LValue, Box<Expression>),
     BinaryOperation(Box<Expression>, BinaryOperator, Box<Expression>),
     Cast(Box<Expression>, TypeKind),

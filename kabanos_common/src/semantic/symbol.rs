@@ -1,4 +1,6 @@
-use super::types::TypeKind;
+use std::collections::HashMap;
+
+use super::{error::SemanticError, types::TypeKind, FunctionDeclaration, Statement};
 
 #[derive(Debug)]
 pub struct Variable {
@@ -7,41 +9,76 @@ pub struct Variable {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct LocalVarID(usize);
+pub struct VariableID(usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FunctionID(usize);
 
 #[derive(Default, Debug)]
 pub struct SymbolTable {
-    locals: Vec<Variable>,
-    // symbol_lookup: HashMap<String, SymbolID>,
+    variables: Vec<Variable>,
+    function_decls: Vec<FunctionDeclaration>,
+    function_defs: HashMap<FunctionID, Vec<Statement>>,
+    function_lookup: HashMap<String, FunctionID>,
 }
 
 impl SymbolTable {
-    // pub fn push_scope(&mut self) {
-    //     self.scope_stack.push_back(Default::default());
-    // }
-    //
-    // pub fn pop_scope(&mut self) -> HashMap<String, SymbolID> {
-    //     self.scope_stack.pop_back().expect("Popped too many stacks")
-    // }
-
-    pub fn push_local_var(&mut self, symbol: Variable) -> LocalVarID {
-        // let name = symbol.identifier.clone();
-        self.locals.push(symbol);
-        let symbol_id = LocalVarID(self.locals.len() - 1);
-        // self.symbol_lookup.insert(name, symbol_id);
-        symbol_id
+    pub fn push_local_var(&mut self, symbol: Variable) -> VariableID {
+        self.variables.push(symbol);
+        VariableID(self.variables.len() - 1)
     }
 
-    // pub fn get_symbol_id_by_name(&self, name: &str) -> Option<SymbolID> {
-    //     self.symbol_lookup.get(name).copied()
-    // }
-    //
-    // pub fn get_symbol_by_name(&self, name: &str) -> Option<&Symbol> {
-    //     let symbol_id = self.get_symbol_id_by_name(name)?;
-    //     self.symbols.get(symbol_id.0)
-    // }
+    pub fn declare_function(
+        &mut self,
+        fn_decl: FunctionDeclaration,
+    ) -> Result<FunctionID, SemanticError> {
+        let existing_id = self.get_function_id_by_decl(&fn_decl)?;
+        Ok(existing_id.unwrap_or_else(|| {
+            self.function_decls.push(fn_decl);
+            FunctionID(self.function_decls.len() - 1)
+        }))
+    }
 
-    pub fn get(&self, id: LocalVarID) -> &Variable {
-        self.locals.get(id.0).expect("Unexpected SymbolID")
+    pub fn get_function_id_by_decl(
+        &self,
+        decl: &FunctionDeclaration,
+    ) -> Result<Option<FunctionID>, SemanticError> {
+        let name = &decl.name;
+        let Some(my_decl_id) = self.function_lookup.get(name) else {
+            return Ok(None);
+        };
+
+        let my_decl = self.function_decls.get(my_decl_id.0).unwrap();
+        if my_decl != decl {
+            return Err(SemanticError::SignatureMismatch);
+        }
+
+        return Ok(Some(*my_decl_id));
+    }
+
+    pub fn get_function_id_by_name(&self, name: &str) -> Option<FunctionID> {
+        Some(*self.function_lookup.get(name)?)
+    }
+
+    pub fn define_function(
+        &mut self,
+        id: FunctionID,
+        body: Vec<Statement>,
+    ) -> Result<(), SemanticError> {
+        if self.function_defs.contains_key(&id) {
+            return Err(SemanticError::FunctionRedefiniton);
+        }
+        self.function_defs.insert(id, body);
+        Ok(())
+    }
+
+    pub fn get_function(&self, id: FunctionID) -> &FunctionDeclaration {
+        self.function_decls
+            .get(id.0)
+            .expect("Unexpected FunctionID")
+    }
+
+    pub fn get_variable(&self, id: VariableID) -> &Variable {
+        self.variables.get(id.0).expect("Unexpected VariableID")
     }
 }

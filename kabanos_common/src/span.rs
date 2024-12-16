@@ -21,7 +21,7 @@ impl Display for Span {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Copy, Eq, PartialOrd)]
+#[derive(Default, Debug, Clone, PartialEq, Copy, Eq)]
 pub struct Position {
     pub col: usize,
     pub row: usize,
@@ -40,5 +40,11 @@ impl Ord for Position {
         } else {
             self.col.cmp(&other.col)
         }
+    }
+}
+
+impl PartialOrd for Position {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }

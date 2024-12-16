@@ -8,7 +8,7 @@ pub enum IntBitWidth {
     I64 = 64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IntegerTy {
     pub bits: IntBitWidth,
     pub sign: bool,
@@ -20,10 +20,11 @@ pub enum FloatTy {
     F64 = 64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TypeKind {
     IntType(IntegerTy),
     FloatType(FloatTy),
+    Boolean,
 }
 
 impl From<Primitive> for TypeKind {

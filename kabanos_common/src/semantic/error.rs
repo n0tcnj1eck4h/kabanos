@@ -14,15 +14,13 @@ pub enum SemanticError {
     VoidOperation,
     InvalidUnaryOp(UnaryOperator, TypeKind),
     Undeclared(String),
-    ReturnTypeMismatch {
-        expected: Option<TypeKind>,
-        recieved: Option<TypeKind>,
-    },
+    WrongArgumentCount,
+    ReturnTypeMismatch { expected: Option<TypeKind> },
     NotLogic(TypeKind),
-    TypeMismatch {
-        expected: TypeKind,
-        recieved: Option<TypeKind>,
-    },
+    TypeMismatch { expected: TypeKind, found: TypeKind },
+    FunctionRedefiniton,
+    SignatureMismatch,
+    InvalidBinOp,
 }
 
 impl Display for SemanticError {
@@ -36,17 +34,15 @@ impl Display for SemanticError {
             SemanticError::LValue(expr) => write!(f, "{:?} is not an lvalue", expr),
             SemanticError::VoidOperation => write!(f, "Operation on a void value"),
             SemanticError::Undeclared(ident) => write!(f, "Unknown identifier {}", ident),
-            SemanticError::TypeMismatch { expected, recieved } => write!(
+            SemanticError::TypeMismatch { expected, found } => write!(
                 f,
                 "Mismatched types! {:?} expected, got {:?}",
-                expected, recieved
+                expected, found
             ),
             SemanticError::NotLogic(type_kind) => write!(f, "{:?} is not a logic type", type_kind),
-            SemanticError::ReturnTypeMismatch { expected, recieved } => write!(
-                f,
-                "Mismatched return types! {:?} expected, got {:?}",
-                expected, recieved
-            ),
+            SemanticError::ReturnTypeMismatch { expected } => {
+                write!(f, "Mismatched return types! {:?} expected", expected)
+            }
             SemanticError::InvalidUnaryOp(unary_operator, type_kind) => write!(
                 f,
                 "Invalid unary operation {:?} on type {:?}",
@@ -55,6 +51,12 @@ impl Display for SemanticError {
             SemanticError::FunctionRedefinition(_) => {
                 write!(f, "Function redefined")
             }
+            SemanticError::WrongArgumentCount => {
+                write!(f, "Argument count in function call is incorrect")
+            }
+            SemanticError::FunctionRedefiniton => write!(f, "Function redefined"),
+            SemanticError::SignatureMismatch => write!(f, "Function signature mismatch"),
+            SemanticError::InvalidBinOp => write!(f, "Invalid binary operation"),
         }
     }
 }

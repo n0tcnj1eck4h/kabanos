@@ -410,7 +410,7 @@ where
             }
 
             let span = lhs.span.join(rhs.span);
-            let kind = ExpressionKind::BinaryOperation(Box::new(lhs), op, Box::new(rhs));
+            let kind = ExpressionKind::BinaryOp(Box::new(lhs), op, Box::new(rhs));
             lhs = Expression { kind, span };
         }
 

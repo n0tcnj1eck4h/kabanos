@@ -1,37 +1,30 @@
 pub mod error;
 pub mod expression;
+pub mod expression_builder;
 pub mod from_ast;
 pub mod operator;
 pub mod primitive;
 pub mod symbol;
 pub mod types;
 
-use std::collections::HashMap;
-
 use expression::Expression;
-use symbol::LocalVarID;
+use symbol::VariableID;
 use types::TypeKind;
 
 #[derive(Debug)]
 pub struct Scope {
-    pub symbol: LocalVarID,
+    pub symbol: VariableID,
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionDeclaration {
     pub name: String,
     pub params: Vec<Parameter>,
     pub ty: Option<TypeKind>,
 }
 
-#[derive(Debug)]
-pub struct FunctionDefinition {
-    pub declaration: FunctionDeclaration,
-    pub body: Vec<Statement>,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Parameter {
     pub name: String,
     pub ty: TypeKind,
