@@ -1,6 +1,6 @@
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
-#[derive(Default, Debug, Clone, PartialEq, Copy)]
+#[derive(Default, Clone, PartialEq, Copy)]
 pub struct Span {
     pub start: Position,
     pub end: Position,
@@ -17,11 +17,17 @@ impl Span {
 
 impl Display for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.start)
+        write!(f, "{}..{}", self.start, self.end)
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Copy, Eq)]
+impl Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
+    }
+}
+
+#[derive(Default, Clone, PartialEq, Copy, Eq)]
 pub struct Position {
     pub col: usize,
     pub row: usize,
@@ -30,6 +36,12 @@ pub struct Position {
 impl Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}", self.col, self.row)
+    }
+}
+
+impl Debug for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
     }
 }
 

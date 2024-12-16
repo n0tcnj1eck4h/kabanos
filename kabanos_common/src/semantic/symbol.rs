@@ -34,8 +34,11 @@ impl SymbolTable {
     ) -> Result<FunctionID, SemanticError> {
         let existing_id = self.get_function_id_by_decl(&fn_decl)?;
         Ok(existing_id.unwrap_or_else(|| {
+            let name = fn_decl.name.clone();
             self.function_decls.push(fn_decl);
-            FunctionID(self.function_decls.len() - 1)
+            let id = FunctionID(self.function_decls.len() - 1);
+            self.function_lookup.insert(name, id);
+            id
         }))
     }
 

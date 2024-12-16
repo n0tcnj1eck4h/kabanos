@@ -22,6 +22,7 @@ pub enum BinaryOperator {
     BitRight,
     LogicAnd,
     LogicOr,
+    Assign,
 }
 
 impl TryFrom<Operator> for BinaryOperator {
@@ -46,6 +47,7 @@ impl TryFrom<Operator> for BinaryOperator {
             Operator::RightShift => Ok(Self::BitRight),
             Operator::LogicAnd => Ok(Self::LogicAnd),
             Operator::LogicOr => Ok(Self::LogicOr),
+            Operator::Assign => Ok(Self::Assign),
             _ => Err(SemanticError::NotBinOp(value)),
         }
     }

@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
-use crate::{ast, token::Operator};
+use crate::token::Operator;
 
-use super::{operator::UnaryOperator, types::TypeKind};
+use super::{expression::Expression, operator::UnaryOperator, types::TypeKind};
 
 #[derive(Debug)]
 pub enum SemanticError {
@@ -10,13 +10,12 @@ pub enum SemanticError {
     NotUnaryOp(Operator),
     FunctionRedefinition(String),
     NotPrimitive(String),
-    LValue(ast::Expression),
+    LValue(Expression),
     VoidOperation,
     InvalidUnaryOp(UnaryOperator, TypeKind),
     Undeclared(String),
     WrongArgumentCount,
     ReturnTypeMismatch { expected: Option<TypeKind> },
-    NotLogic(TypeKind),
     TypeMismatch { expected: TypeKind, found: TypeKind },
     FunctionRedefiniton,
     SignatureMismatch,
@@ -39,7 +38,6 @@ impl Display for SemanticError {
                 "Mismatched types! {:?} expected, got {:?}",
                 expected, found
             ),
-            SemanticError::NotLogic(type_kind) => write!(f, "{:?} is not a logic type", type_kind),
             SemanticError::ReturnTypeMismatch { expected } => {
                 write!(f, "Mismatched return types! {:?} expected", expected)
             }

@@ -61,6 +61,13 @@ impl Module {
             let declaration = context.build_declaration(s.prototype)?;
 
             let mut stack = Vec::new();
+            for param in &declaration.params {
+                let id = context.symbol_table.push_local_var(Variable {
+                    identifier: param.name.clone(),
+                    ty: param.ty,
+                });
+                stack.push(id);
+            }
             let body = context.build_statements(s.body, &mut stack, declaration.ty)?;
             let decl_id = context
                 .symbol_table
@@ -85,10 +92,6 @@ impl Module {
             match statement {
                 ast::Statement::Conditional(expr, true_block, else_block) => {
                     let expr = self.build_expression(expr, Some(TypeKind::Boolean), stack)?;
-
-                    if !matches!(expr.ty, TypeKind::IntType(_)) {
-                        return Err(SemanticError::NotLogic(expr.ty));
-                    }
 
                     let true_block =
                         self.build_statements(*true_block, stack, expected_return_ty)?;
@@ -132,12 +135,6 @@ impl Module {
                 }
                 ast::Statement::Loop(expr, s) => {
                     let expr = self.build_expression(expr, Some(TypeKind::Boolean), stack)?;
-
-                    match expr.ty {
-                        TypeKind::IntType(_) => {}
-                        _ => return Err(SemanticError::NotLogic(expr.ty)),
-                    };
-
                     let s = self.build_statements(*s, stack, expected_return_ty)?;
                     statements.push(Statement::Loop(expr, s));
                 }

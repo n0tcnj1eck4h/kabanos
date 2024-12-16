@@ -195,12 +195,21 @@ impl ExpressionBuilder<'_> {
     ) -> Result<Expression, SemanticError> {
         let op = op.try_into()?;
 
-        use BinaryOperator::*;
-
-        let left = self.build_expression(left)?;
+        // TODO uhh
+        let left = self.build_expression_with_type(left, None)?;
         let ty = left.ty;
         let right = self.build_expression_with_type(right, Some(left.ty))?;
 
+        if op == BinaryOperator::Assign {
+            if let ExpressionKind::LValue(lvalue) = left.kind {
+                let kind = ExpressionKind::Assignment(lvalue, Box::new(right));
+                return Ok(Expression { kind, ty });
+            } else {
+                return Err(SemanticError::LValue(left));
+            }
+        }
+
+        use BinaryOperator::*;
         let (left, op, right, ty) = match op {
             Equal | Less | Greater | LessOrEqual | GreaterOrEqual | NotEqual => {
                 let ty = TypeKind::Boolean;
@@ -229,6 +238,10 @@ impl ExpressionBuilder<'_> {
                 } else {
                     return Err(SemanticError::InvalidBinOp);
                 }
+            }
+
+            Assign => {
+                todo!()
             }
         };
 
