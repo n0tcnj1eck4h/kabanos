@@ -18,6 +18,7 @@ pub struct FunctionPrototype {
     pub parameters: Vec<Parameter>,
     pub calling_convention: Option<String>,
     pub return_type: Option<String>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -41,6 +42,7 @@ pub struct Import {
 pub struct Parameter {
     pub ty: String,
     pub name: String,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]

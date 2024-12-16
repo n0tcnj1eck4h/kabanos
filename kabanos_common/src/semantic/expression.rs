@@ -1,7 +1,10 @@
+use crate::span::Span;
+
 use super::{
     operator::{BinaryOperator, UnaryOperator},
     symbol::FunctionID,
-    types::TypeKind, VariableID,
+    types::TypeKind,
+    VariableID,
 };
 
 #[derive(Debug, Clone)]
@@ -15,6 +18,7 @@ pub enum LValue {
 pub struct Expression {
     pub kind: ExpressionKind,
     pub ty: TypeKind,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone)]

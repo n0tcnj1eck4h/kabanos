@@ -1,11 +1,24 @@
 use std::fmt::Display;
 
-use crate::token::Operator;
+use crate::{span::Span, token::Operator};
 
 use super::{expression::Expression, operator::UnaryOperator, types::TypeKind};
 
 #[derive(Debug)]
-pub enum SemanticError {
+pub struct SemanticError {
+    pub kind: SemanticErrorKind,
+    pub span: Span,
+}
+
+impl Display for SemanticError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.kind.fmt(f)?;
+        write!(f, " on line {}", self.span)
+    }
+}
+
+#[derive(Debug)]
+pub enum SemanticErrorKind {
     NotBinOp(Operator),
     NotUnaryOp(Operator),
     FunctionRedefinition(String),
@@ -22,39 +35,45 @@ pub enum SemanticError {
     InvalidBinOp,
 }
 
-impl Display for SemanticError {
+impl SemanticErrorKind {
+    pub fn with_span(self, span: Span) -> SemanticError {
+        SemanticError { kind: self, span }
+    }
+}
+
+impl Display for SemanticErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SemanticError::NotBinOp(op) => write!(f, "{:?} is not a binary operator", op),
-            SemanticError::NotUnaryOp(op) => write!(f, "{:?} is not a unary operator", op),
-            SemanticError::NotPrimitive(ident) => {
+            SemanticErrorKind::NotBinOp(op) => write!(f, "{:?} is not a binary operator", op),
+            SemanticErrorKind::NotUnaryOp(op) => write!(f, "{:?} is not a unary operator", op),
+            SemanticErrorKind::NotPrimitive(ident) => {
                 write!(f, "{:?} is not a valid primitive type", ident)
             }
-            SemanticError::LValue(expr) => write!(f, "{:?} is not an lvalue", expr),
-            SemanticError::VoidOperation => write!(f, "Operation on a void value"),
-            SemanticError::Undeclared(ident) => write!(f, "Unknown identifier {}", ident),
-            SemanticError::TypeMismatch { expected, found } => write!(
+            SemanticErrorKind::LValue(expr) => write!(f, "{:?} is not an lvalue", expr),
+            SemanticErrorKind::VoidOperation => write!(f, "Operation on a void value"),
+            SemanticErrorKind::Undeclared(ident) => write!(f, "Unknown identifier {}", ident),
+            SemanticErrorKind::TypeMismatch { expected, found } => write!(
                 f,
                 "Mismatched types! {:?} expected, got {:?}",
                 expected, found
             ),
-            SemanticError::ReturnTypeMismatch { expected } => {
+            SemanticErrorKind::ReturnTypeMismatch { expected } => {
                 write!(f, "Mismatched return types! {:?} expected", expected)
             }
-            SemanticError::InvalidUnaryOp(unary_operator, type_kind) => write!(
+            SemanticErrorKind::InvalidUnaryOp(unary_operator, type_kind) => write!(
                 f,
                 "Invalid unary operation {:?} on type {:?}",
                 unary_operator, type_kind
             ),
-            SemanticError::FunctionRedefinition(_) => {
+            SemanticErrorKind::FunctionRedefinition(_) => {
                 write!(f, "Function redefined")
             }
-            SemanticError::WrongArgumentCount => {
+            SemanticErrorKind::WrongArgumentCount => {
                 write!(f, "Argument count in function call is incorrect")
             }
-            SemanticError::FunctionRedefiniton => write!(f, "Function redefined"),
-            SemanticError::SignatureMismatch => write!(f, "Function signature mismatch"),
-            SemanticError::InvalidBinOp => write!(f, "Invalid binary operation"),
+            SemanticErrorKind::FunctionRedefiniton => write!(f, "Function redefined"),
+            SemanticErrorKind::SignatureMismatch => write!(f, "Function signature mismatch"),
+            SemanticErrorKind::InvalidBinOp => write!(f, "Invalid binary operation"),
         }
     }
 }

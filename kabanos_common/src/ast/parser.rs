@@ -146,13 +146,16 @@ where
         self.expect(TokenKind::Atom('('))?;
         let mut parameters = Vec::new();
         loop {
+            let mut span = self.token.span;
             if let TokenKind::Identifier(ref mut param_type) = self.token.kind {
                 let param_type = mem::take(param_type);
                 self.advance()?;
                 if let TokenKind::Identifier(ref mut name) = self.token.kind {
+                    span = span.join(self.token.span);
                     parameters.push(Parameter {
                         ty: param_type,
                         name: mem::take(name),
+                        span,
                     });
                     self.advance()?;
                 }
@@ -447,6 +450,7 @@ where
     }
 
     fn function_prototype(&mut self) -> Result<FunctionPrototype, ParsingError> {
+        let mut span = self.token.span;
         self.advance()?;
 
         let calling_convention = if let TokenKind::StringLiteral(ref mut c) = self.token.kind {
@@ -470,11 +474,13 @@ where
                         self.advance()?;
                     }
                 }
+                span = self.token.span.join(span);
                 return Ok(FunctionPrototype {
                     name,
                     parameters,
                     calling_convention,
                     return_type,
+                    span,
                 });
             }
         }

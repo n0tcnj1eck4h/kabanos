@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
-use crate::ast;
+use crate::{ast, span::Span};
 
 use super::{
-    error::SemanticError,
+    error::{SemanticError, SemanticErrorKind},
     expression::{Expression, ExpressionKind, LValue},
     expression_builder::ExpressionBuilder,
     primitive::Primitive,
@@ -48,16 +48,24 @@ impl Module {
         let mut context = Module::default();
 
         for s in module.fn_declarations {
+            let span = s.span;
             let fn_decl = context.build_declaration(s)?;
-            context.symbol_table.declare_function(fn_decl)?;
+            context
+                .symbol_table
+                .declare_function(fn_decl)
+                .map_err(|e| e.with_span(span))?;
         }
 
         for s in module.fn_definitions.iter() {
-            let s = context.build_declaration(s.prototype.clone())?;
-            context.symbol_table.declare_function(s)?;
+            let fn_decl = context.build_declaration(s.prototype.clone())?;
+            context
+                .symbol_table
+                .declare_function(fn_decl)
+                .map_err(|e| e.with_span(s.prototype.span))?;
         }
 
         for s in module.fn_definitions {
+            let span = s.prototype.span;
             let declaration = context.build_declaration(s.prototype)?;
 
             let mut stack = Vec::new();
@@ -71,9 +79,13 @@ impl Module {
             let body = context.build_statements(s.body, &mut stack, declaration.ty)?;
             let decl_id = context
                 .symbol_table
-                .get_function_id_by_decl(&declaration)?
+                .get_function_id_by_decl(&declaration)
+                .map_err(|e| e.with_span(span))?
                 .expect("Function not forward declared");
-            context.symbol_table.define_function(decl_id, body)?;
+            context
+                .symbol_table
+                .define_function(decl_id, body)
+                .map_err(|e| e.with_span(span))?;
         }
 
         Ok(context)
@@ -107,15 +119,18 @@ impl Module {
                 ast::Statement::Expression(expr) => {
                     // Treat void funtion calls as statements
                     if let ast::ExpressionKind::FunctionCall(ref name, ref args) = expr.kind {
-                        let fn_id = self
-                            .symbol_table
-                            .get_function_id_by_name(name)
-                            .ok_or_else(|| SemanticError::Undeclared(name.clone()))?;
+                        let span = expr.span;
+                        let fn_id =
+                            self.symbol_table
+                                .get_function_id_by_name(name)
+                                .ok_or_else(|| {
+                                    SemanticErrorKind::Undeclared(name.clone()).with_span(span)
+                                })?;
                         let fn_decl = self.symbol_table.get_function(fn_id);
                         if fn_decl.ty.is_none() {
                             let params = &fn_decl.params;
                             if params.len() != args.len() {
-                                return Err(SemanticError::WrongArgumentCount);
+                                return Err(SemanticErrorKind::WrongArgumentCount.with_span(span));
                             }
                             let args: Result<Vec<_>, _> = params
                                 .iter()
@@ -153,9 +168,10 @@ impl Module {
                         statements.push(Statement::Return(None));
                     }
                     _ => {
-                        return Err(SemanticError::ReturnTypeMismatch {
+                        return Err(SemanticErrorKind::ReturnTypeMismatch {
                             expected: expected_return_ty,
-                        });
+                        }
+                        .with_span(Span::default()));
                     }
                 },
                 ast::Statement::LocalVar(identifier, ty, expr) => {
@@ -167,11 +183,12 @@ impl Module {
                     let symbol_id = self.symbol_table.push_local_var(symbol);
 
                     if let Some(expr) = expr {
+                        let span = expr.span;
                         let expr = self.build_expression(expr, Some(ty), stack)?;
                         let ty = expr.ty;
                         let kind =
                             ExpressionKind::Assignment(LValue::LocalVar(symbol_id), Box::new(expr));
-                        statements.push(Statement::Expression(Expression { kind, ty }));
+                        statements.push(Statement::Expression(Expression { kind, ty, span }));
                     };
 
                     stack.push(symbol_id);
@@ -215,13 +232,16 @@ impl Module {
         let ty = prototype
             .return_type
             .map(|ty| Primitive::from_str(&ty))
-            .transpose()?
+            .transpose()
+            .map_err(|e| e.with_span(prototype.span))?
             .map(Into::into);
 
         let mut params = Vec::new();
         for p in prototype.parameters {
             let name = p.name;
-            let ty = Primitive::from_str(&p.ty)?.into();
+            let ty = Primitive::from_str(&p.ty)
+                .map_err(|e| e.with_span(p.span))?
+                .into();
             let param = Parameter { name, ty };
             params.push(param);
         }
