@@ -27,7 +27,7 @@ fn main() {
 
         let module = match Module::build_module(ast) {
             Ok(module) => module,
-            Err(err) => return println!("Semantic error: {}", err),
+            Err(err) => return println!("Semantic error: {:?}", err),
         };
 
         dbg!(module);

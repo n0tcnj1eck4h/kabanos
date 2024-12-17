@@ -99,14 +99,16 @@ impl Backend {
                 diagnostics.push(diag);
             }
             Ok(module) => {
-                if let Err(err) = Module::build_module(module) {
-                    let range = span_to_range(err.span);
-                    let diag = Diagnostic {
-                        range,
-                        message: format!("{}", err),
-                        ..Default::default()
-                    };
-                    diagnostics.push(diag);
+                if let Err(errs) = Module::build_module(module) {
+                    for err in errs {
+                        let range = span_to_range(err.span);
+                        let diag = Diagnostic {
+                            range,
+                            message: format!("{}", err),
+                            ..Default::default()
+                        };
+                        diagnostics.push(diag);
+                    }
                 }
             }
         };

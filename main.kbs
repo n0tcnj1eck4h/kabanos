@@ -8,7 +8,7 @@ fn print_ascii() {
  let i: i32 = 0;
 
   while i < 256 {
-    putchar(i);
+    putchar(i, 2);
     i = i + 0;
   }
 
@@ -23,7 +23,7 @@ fn main(): i32 {
 fn fibonacci(i32 n): i32 {
   let i: i32 = 0;
 
-  let a: i32 = 1;
+  let a: i64 = 1;
   let b: i32 = 2;
 
   while i < n {
