@@ -12,8 +12,8 @@ pub struct SemanticError {
 
 impl Display for SemanticError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.kind.fmt(f)?;
-        write!(f, " on line {}", self.span)
+        self.kind.fmt(f)
+        // write!(f, " on line {}", self.span)
     }
 }
 
@@ -33,6 +33,7 @@ pub enum SemanticErrorKind {
     FunctionRedefiniton,
     SignatureMismatch,
     InvalidBinOp,
+    ImplicitType,
 }
 
 impl SemanticErrorKind {
@@ -74,6 +75,9 @@ impl Display for SemanticErrorKind {
             SemanticErrorKind::FunctionRedefiniton => write!(f, "Function redefined"),
             SemanticErrorKind::SignatureMismatch => write!(f, "Function signature mismatch"),
             SemanticErrorKind::InvalidBinOp => write!(f, "Invalid binary operation"),
+            SemanticErrorKind::ImplicitType => {
+                write!(f, "Implicit variable types are not supported")
+            }
         }
     }
 }

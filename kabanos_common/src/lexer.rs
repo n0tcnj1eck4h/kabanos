@@ -18,7 +18,7 @@ where
 {
     pub fn new(mut stream: T) -> Self {
         let ch = stream.next();
-        let pos = Position { col: 1, row: 1 };
+        let pos = Position { col: 0, row: 0 };
         Lexer {
             stream,
             ch,
@@ -38,7 +38,7 @@ where
     fn advance(&mut self) -> bool {
         self.ch = self.stream.next();
         if let Some('\n') = self.ch {
-            self.pos.col = 1;
+            self.pos.col = 0;
             self.pos.row += 1;
         } else {
             self.pos.col += 1;

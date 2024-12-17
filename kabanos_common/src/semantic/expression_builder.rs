@@ -237,10 +237,18 @@ impl ExpressionBuilder<'_> {
         let left_span = left.span;
         let right_span = right.span;
 
-        // TODO uhh
-        let left = self.build_expression_with_type(left, None)?;
-        let ty = left.ty;
-        let right = self.build_expression_with_type(right, Some(left.ty))?;
+        let (left, ty, right) = {
+            if right.kind.is_strongly_typed() {
+                let right = self.build_expression_with_type(right, None)?;
+                let left = self.build_expression_with_type(left, Some(right.ty))?;
+                (left, right.ty, right)
+            } else {
+                let left = self.build_expression_with_type(left, None)?;
+                let ty = left.ty;
+                let right = self.build_expression_with_type(right, Some(left.ty))?;
+                (left, ty, right)
+            }
+        };
 
         use BinaryOperator::*;
         let (left, op, right, ty) = match op {

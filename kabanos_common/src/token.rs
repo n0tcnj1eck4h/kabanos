@@ -15,6 +15,22 @@ pub enum TokenKind {
     None,
 }
 
+impl std::fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenKind::Identifier(name) => write!(f, "identifier {}", name),
+            TokenKind::IntegerLiteral(value) => write!(f, "integer {}", value),
+            TokenKind::FloatingPointLiteral(value) => write!(f, "float {}", value),
+            TokenKind::StringLiteral(value) => write!(f, "string \"{}\"", value),
+            TokenKind::BooleanLiteral(value) => write!(f, "bool {}", value),
+            TokenKind::Operator(op) => write!(f, "operator {:?}", op),
+            TokenKind::Keyword(keyword) => write!(f, "keyword {:?}", keyword),
+            TokenKind::Atom(atom) => write!(f, "'{}'", atom),
+            TokenKind::None => write!(f, "None"),
+        }
+    }
+}
+
 impl Default for TokenKind {
     fn default() -> Self {
         Self::None

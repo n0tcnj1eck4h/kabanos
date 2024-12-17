@@ -1,4 +1,7 @@
-use crate::ast::error::ParsingError;
+use crate::{
+    ast::error::ParsingError,
+    span::{Position, Span},
+};
 use std::mem;
 
 use crate::{
@@ -38,7 +41,15 @@ where
                 self.token = token;
                 self.next_token = self.lexer.next();
             }
-            None => return Err(ParsingError::UnexpectedEOF),
+            None => {
+                let pos = self.token.span.end;
+                let span = Span {
+                    start: pos,
+                    end: pos,
+                };
+
+                return Err(ParsingError::UnexpectedEOF(span));
+            }
         }
         Ok(())
     }
@@ -85,7 +96,7 @@ where
             }
         }
 
-        if self.advance() == Err(ParsingError::UnexpectedEOF) {
+        if let Err(ParsingError::UnexpectedEOF(_)) = self.advance() {
             Ok(Module {
                 imports,
                 fn_declarations,

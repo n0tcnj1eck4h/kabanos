@@ -60,3 +60,30 @@ impl PartialOrd for Position {
         Some(self.cmp(other))
     }
 }
+
+pub struct Spanned<T> {
+    pub span: Span,
+    pub inner: T,
+}
+
+pub trait WithSpan {
+    fn with_span(self, span: Span) -> Spanned<Self>
+    where
+        Self: Sized,
+    {
+        Spanned { inner: self, span }
+    }
+}
+
+impl<T> WithSpan for T {}
+
+impl<T: Display> Display for Spanned<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)?;
+        write!(
+            f,
+            " on line {}, column {}",
+            self.span.start.row, self.span.start.col
+        )
+    }
+}

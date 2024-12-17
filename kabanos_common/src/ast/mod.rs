@@ -73,6 +73,22 @@ pub enum ExpressionKind {
     FunctionCall(String, Vec<Expression>),
 }
 
+impl ExpressionKind {
+    pub fn is_strongly_typed(&self) -> bool {
+        match self {
+            ExpressionKind::IntegerLiteral(_)
+            | ExpressionKind::FloatLiteral(_)
+            | ExpressionKind::BooleanLiteral(_)
+            | ExpressionKind::BinaryOp(_, _, _)
+            | ExpressionKind::UnaryOperation(_, _) => false,
+
+            ExpressionKind::FunctionCall(_, _)
+            | ExpressionKind::Identifier(_)
+            | ExpressionKind::StringLiteral(_) => true,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct CompositeField {
     pub name: String,

@@ -175,9 +175,12 @@ impl Module {
                     }
                 },
                 ast::Statement::LocalVar(identifier, ty, expr) => {
-                    let ty_str = ty.expect("Implicit type not supported");
-                    let primitive = Primitive::from_str(&ty_str).unwrap();
-                    let ty: TypeKind = primitive.into();
+                    let ty_str = ty.ok_or_else(|| {
+                        SemanticErrorKind::ImplicitType.with_span(Span::default())
+                    })?;
+                    let ty: TypeKind = Primitive::from_str(&ty_str)
+                        .map_err(|e| e.with_span(Span::default()))?
+                        .into();
 
                     let symbol = Variable { identifier, ty };
                     let symbol_id = self.symbol_table.push_local_var(symbol);
