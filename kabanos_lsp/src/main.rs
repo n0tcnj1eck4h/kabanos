@@ -1,39 +1,59 @@
-mod messages;
-mod reader;
+use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::*;
+use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use std::io::{stdin, Read, Seek};
+#[derive(Debug)]
+struct Backend {
+    client: Client,
+}
 
-use std::io::{BufReader, Cursor};
-
-use crate::{
-    messages::request::{Request, RequestMethod},
-    messages::Message,
-    reader::MessageReader,
-};
-
-fn main() {
-    let stdin = stdin().lock();
-    let reader = MessageReader::new(stdin);
-    for message in reader {
-        dbg!(message);
+#[tower_lsp::async_trait]
+impl LanguageServer for Backend {
+    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+        let capabilities = ServerCapabilities {
+            position_encoding: Some(PositionEncodingKind::UTF8),
+            hover_provider: Some(HoverProviderCapability::Simple(true)),
+            text_document_sync: Some(TextDocumentSyncKind::FULL.into()),
+            ..Default::default()
+        };
+        let server_info = Some(ServerInfo {
+            name: "kabanos_lsp".to_string(),
+            version: Some("0".to_string()),
+        });
+        Ok(InitializeResult {
+            capabilities,
+            server_info,
+        })
     }
 
-    let input_str =
-        "Content-Length: 49\r\n\r\n{\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"shutdown\"}";
-    let cursor = Cursor::new(input_str);
-    let buf_reader = BufReader::new(cursor);
+    async fn hover(&self, _params: HoverParams) -> Result<Option<Hover>> {
+        let hover = Hover {
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: "haii".to_string(),
+            }),
+            range: None,
+        };
 
-    let mut message_reader = MessageReader::new(buf_reader);
-    let message = message_reader.next().unwrap().unwrap();
+        Ok(Some(hover))
+    }
 
-    let mut remains = Vec::new();
-    let n = message_reader.input.read_to_end(&mut remains).unwrap();
-    assert_eq!(n, 0);
+    async fn initialized(&self, _: InitializedParams) {
+        self.client
+            .log_message(MessageType::INFO, "server initialized!")
+            .await;
+    }
 
-    let expected = Message::Request(Request {
-        id: 1,
-        method: RequestMethod::Shutdown,
-    });
+    async fn shutdown(&self) -> Result<()> {
+        Ok(())
+    }
+}
 
-    assert_eq!(message, expected);
+#[tokio::main]
+async fn main() {
+    let stdin = tokio::io::stdin();
+    let stdout = tokio::io::stdout();
+
+    let (service, socket) = LspService::new(|client| Backend { client });
+    Server::new(stdin, stdout, socket).serve(service).await;
 }

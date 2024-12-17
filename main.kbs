@@ -1,10 +1,11 @@
 #ssize_t write(int fd, const void buf[.count], size_t count);
 #extern write(i32 fd, ) -> i32;
+# TODO: different casts
 
 extern fn putchar(i32 c): i32;
 
 fn print_ascii() {
-  let i: i32 = 0;
+  let i: i32 = 0 as i64;
 
   while i < 256 {
     putchar(i);

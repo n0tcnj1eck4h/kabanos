@@ -92,8 +92,8 @@ impl ExpressionBuilder<'_> {
             Ok(InnerExpression { kind, ty })
         } else {
             Err(SemanticErrorKind::TypeMismatch {
-                expected: default_float_type,
-                found: ty,
+                expected: ty,
+                found: default_float_type,
             })
         }
     }
@@ -105,8 +105,8 @@ impl ExpressionBuilder<'_> {
             Ok(InnerExpression { kind, ty })
         } else {
             Err(SemanticErrorKind::TypeMismatch {
-                expected: TypeKind::Boolean,
-                found: ty,
+                expected: ty,
+                found: TypeKind::Boolean,
             })
         }
     }
@@ -221,8 +221,8 @@ impl ExpressionBuilder<'_> {
             Ok(InnerExpression { kind, ty })
         } else {
             Err(SemanticErrorKind::TypeMismatch {
-                expected: default_int_type,
-                found: ty,
+                expected: ty,
+                found: default_int_type,
             })
         }
     }
