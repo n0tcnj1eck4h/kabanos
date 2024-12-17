@@ -1,6 +1,6 @@
 use kabanos_common::ast::parser::Parser;
 use kabanos_common::lexer::Lexer;
-use kabanos_common::semantic::from_ast::Module;
+use kabanos_common::semantic::Module;
 use kabanos_common::span::Span;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;

@@ -1,15 +1,21 @@
 pub mod error;
 pub mod expression;
 pub mod expression_builder;
-pub mod from_ast;
+pub mod module_builder;
 pub mod operator;
 pub mod primitive;
+pub mod statement_builder;
 pub mod symbol;
 pub mod types;
 
 use expression::Expression;
-use symbol::VariableID;
+use symbol::{SymbolTable, VariableID};
 use types::TypeKind;
+
+#[derive(Default, Debug)]
+pub struct Module {
+    symbol_table: SymbolTable,
+}
 
 #[derive(Debug)]
 pub struct Scope {

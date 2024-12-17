@@ -3,7 +3,7 @@
 // use codegen::ModuleProvider;
 use kabanos_common::ast::parser::Parser;
 use kabanos_common::lexer::Lexer;
-use kabanos_common::semantic::from_ast::Module;
+use kabanos_common::semantic::Module;
 use kabanos_common::token::Token;
 
 use std::{
