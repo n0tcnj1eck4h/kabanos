@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use super::error::SemanticErrorKind;
+use super::error::SemanticError;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Primitive {
@@ -18,7 +18,7 @@ pub enum Primitive {
 }
 
 impl FromStr for Primitive {
-    type Err = SemanticErrorKind;
+    type Err = SemanticError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "bool" => Ok(Self::Bool),
@@ -32,7 +32,7 @@ impl FromStr for Primitive {
             "u64" => Ok(Self::U64),
             "f32" => Ok(Self::F32),
             "f64" => Ok(Self::F64),
-            _ => Err(SemanticErrorKind::NotPrimitive(s.to_string())),
+            _ => Err(SemanticError::NotPrimitive(s.to_string())),
         }
     }
 }

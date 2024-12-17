@@ -1,7 +1,11 @@
-use crate::{ast, span::Span, token::Operator};
+use crate::{
+    ast,
+    span::{HasSpan, Span, Spanned, WithSpan as _},
+    token::Operator,
+};
 
 use super::{
-    error::{SemanticError, SemanticErrorKind},
+    error::SemanticError,
     expression::{ExpressionKind, LValue},
     operator::{BinaryOperator, UnaryOperator},
     symbol::{SymbolTable, VariableID},
@@ -33,12 +37,13 @@ pub struct ExpressionBuilder<'a> {
 impl ExpressionBuilder<'_> {
     pub fn build_expression(
         &self,
-        expression: ast::Expression,
-    ) -> Result<super::Expression, SemanticError> {
-        let span = expression.span;
+        expression: Spanned<ast::Expression>,
+    ) -> Result<super::Expression, Spanned<SemanticError>> {
+        let span = expression.get_span();
         let expr = self
-            .build_inner_expression(expression)
+            .build_inner_expression(expression.unwrap())
             .map_err(|e| e.with_span(span))?;
+
         Ok(super::Expression {
             kind: expr.kind,
             ty: expr.ty,
@@ -49,16 +54,16 @@ impl ExpressionBuilder<'_> {
     fn build_inner_expression(
         &self,
         expression: ast::Expression,
-    ) -> Result<InnerExpression, SemanticErrorKind> {
-        let expr = match expression.kind {
-            ast::ExpressionKind::IntegerLiteral(i) => self.build_int_literal(i),
-            ast::ExpressionKind::FloatLiteral(f) => self.build_float_literal(f),
-            ast::ExpressionKind::BooleanLiteral(b) => self.build_boolean_literal(b),
-            ast::ExpressionKind::Identifier(ident) => self.build_identifier(ident),
-            ast::ExpressionKind::BinaryOp(left, op, right) => self.build_binop(*left, op, *right),
-            ast::ExpressionKind::UnaryOperation(op, expr) => self.build_unary_operation(op, *expr),
-            ast::ExpressionKind::FunctionCall(name, args) => self.build_function_call(name, args),
-            ast::ExpressionKind::StringLiteral(_) => {
+    ) -> Result<InnerExpression, SemanticError> {
+        let expr = match expression {
+            ast::Expression::IntegerLiteral(i) => self.build_int_literal(i),
+            ast::Expression::FloatLiteral(f) => self.build_float_literal(f),
+            ast::Expression::BooleanLiteral(b) => self.build_boolean_literal(b),
+            ast::Expression::Identifier(ident) => self.build_identifier(ident),
+            ast::Expression::BinaryOp(left, op, right) => self.build_binop(*left, op, *right),
+            ast::Expression::UnaryOperation(op, expr) => self.build_unary_operation(op, *expr),
+            ast::Expression::FunctionCall(name, args) => self.build_function_call(name, args),
+            ast::Expression::StringLiteral(_) => {
                 panic!("String literals are not supported yet")
             }
         }?;
@@ -72,18 +77,18 @@ impl ExpressionBuilder<'_> {
 
     fn build_expression_with_type(
         &self,
-        expression: ast::Expression,
+        expression: Spanned<ast::Expression>,
         expected_ty: Option<TypeKind>,
-    ) -> Result<InnerExpression, SemanticErrorKind> {
+    ) -> Result<InnerExpression, SemanticError> {
         let builder = ExpressionBuilder {
             stack: self.stack,
             symbol_table: self.symbol_table,
             expected_ty,
         };
-        builder.build_inner_expression(expression)
+        builder.build_inner_expression(expression.unwrap())
     }
 
-    fn build_float_literal(&self, f: f64) -> Result<InnerExpression, SemanticErrorKind> {
+    fn build_float_literal(&self, f: f64) -> Result<InnerExpression, SemanticError> {
         let default_float_type = TypeKind::FloatType(FloatTy::F32);
         let ty = self.expected_ty.unwrap_or(default_float_type);
 
@@ -91,34 +96,34 @@ impl ExpressionBuilder<'_> {
         if let TypeKind::FloatType(_) = ty {
             Ok(InnerExpression { kind, ty })
         } else {
-            Err(SemanticErrorKind::TypeMismatch {
+            Err(SemanticError::TypeMismatch {
                 expected: ty,
                 found: default_float_type,
             })
         }
     }
 
-    fn build_boolean_literal(&self, b: bool) -> Result<InnerExpression, SemanticErrorKind> {
+    fn build_boolean_literal(&self, b: bool) -> Result<InnerExpression, SemanticError> {
         let kind = ExpressionKind::BooleanLiteral(b);
         let ty = self.expected_ty.unwrap_or(TypeKind::Boolean);
         if TypeKind::Boolean == ty {
             Ok(InnerExpression { kind, ty })
         } else {
-            Err(SemanticErrorKind::TypeMismatch {
+            Err(SemanticError::TypeMismatch {
                 expected: ty,
                 found: TypeKind::Boolean,
             })
         }
     }
 
-    fn build_identifier(&self, ident: String) -> Result<InnerExpression, SemanticErrorKind> {
+    fn build_identifier(&self, ident: String) -> Result<InnerExpression, SemanticError> {
         for s in self.stack.iter().rev().copied() {
             let symbol = self.symbol_table.get_variable(s);
             if symbol.identifier == ident {
                 let ty = symbol.ty;
                 if let Some(expected_ty) = self.expected_ty {
                     if expected_ty != ty {
-                        return Err(SemanticErrorKind::TypeMismatch {
+                        return Err(SemanticError::TypeMismatch {
                             expected: expected_ty,
                             found: ty,
                         });
@@ -131,17 +136,17 @@ impl ExpressionBuilder<'_> {
             }
         }
 
-        Err(SemanticErrorKind::Undeclared(ident))
+        Err(SemanticError::Undeclared(ident))
     }
 
     fn build_unary_operation(
         &self,
         op: Operator,
-        expr: ast::Expression,
-    ) -> Result<InnerExpression, SemanticErrorKind> {
-        let span = expr.span;
+        expr: Spanned<ast::Expression>,
+    ) -> Result<InnerExpression, SemanticError> {
+        let span = expr.get_span();
         let operator = op.try_into()?;
-        let expression = self.build_inner_expression(expr)?;
+        let expression = self.build_inner_expression(expr.unwrap())?;
         let ty = match operator {
             UnaryOperator::Negative => {
                 if let TypeKind::IntType(mut int_type) = expression.ty {
@@ -156,7 +161,7 @@ impl ExpressionBuilder<'_> {
             {
                 expression.ty
             }
-            _ => return Err(SemanticErrorKind::InvalidUnaryOp(operator, expression.ty)),
+            _ => return Err(SemanticError::InvalidUnaryOp(operator, expression.ty)),
         };
 
         let kind = ExpressionKind::UnaryOperation(operator, Box::new(expression.with_span(span)));
@@ -166,35 +171,35 @@ impl ExpressionBuilder<'_> {
     fn build_function_call(
         &self,
         name: String,
-        args: Vec<ast::Expression>,
-    ) -> Result<InnerExpression, SemanticErrorKind> {
+        args: Vec<Spanned<ast::Expression>>,
+    ) -> Result<InnerExpression, SemanticError> {
         let fn_id = self
             .symbol_table
             .get_function_id_by_name(&name)
-            .ok_or(SemanticErrorKind::Undeclared(name))?;
+            .ok_or(SemanticError::Undeclared(name))?;
 
         let fn_decl = self.symbol_table.get_function(fn_id);
         if let Some(expected_ty) = self.expected_ty {
             let fn_ty = fn_decl.ty.unwrap();
             if fn_ty != expected_ty {
-                return Err(SemanticErrorKind::TypeMismatch {
+                return Err(SemanticError::TypeMismatch {
                     expected: expected_ty,
                     found: fn_ty,
                 });
             }
         }
 
-        let ty = fn_decl.ty.ok_or(SemanticErrorKind::VoidOperation)?;
+        let ty = fn_decl.ty.ok_or(SemanticError::VoidOperation)?;
         let params = &fn_decl.params;
         if params.len() != args.len() {
-            return Err(SemanticErrorKind::WrongArgumentCount);
+            return Err(SemanticError::WrongArgumentCount);
         }
 
         let args: Result<Vec<_>, _> = args
             .into_iter()
             .zip(params)
             .map(|(arg, param)| {
-                let span = arg.span;
+                let span = arg.get_span();
                 let expr = self.build_expression_with_type(arg, Some(param.ty))?;
                 Ok(super::Expression {
                     kind: expr.kind,
@@ -208,7 +213,7 @@ impl ExpressionBuilder<'_> {
         Ok(InnerExpression { ty, kind })
     }
 
-    fn build_int_literal(&self, i: u64) -> Result<InnerExpression, SemanticErrorKind> {
+    fn build_int_literal(&self, i: u64) -> Result<InnerExpression, SemanticError> {
         let kind = ExpressionKind::IntegerLiteral(i);
         let default_int_type = TypeKind::IntType(IntegerTy {
             bits: IntBitWidth::I64,
@@ -220,7 +225,7 @@ impl ExpressionBuilder<'_> {
         if let TypeKind::IntType(_) = ty {
             Ok(InnerExpression { kind, ty })
         } else {
-            Err(SemanticErrorKind::TypeMismatch {
+            Err(SemanticError::TypeMismatch {
                 expected: ty,
                 found: default_int_type,
             })
@@ -229,16 +234,16 @@ impl ExpressionBuilder<'_> {
 
     fn build_binop(
         &self,
-        left: ast::Expression,
+        left: Spanned<ast::Expression>,
         op: Operator,
-        right: ast::Expression,
-    ) -> Result<InnerExpression, SemanticErrorKind> {
+        right: Spanned<ast::Expression>,
+    ) -> Result<InnerExpression, SemanticError> {
         let op = op.try_into()?;
-        let left_span = left.span;
-        let right_span = right.span;
+        let left_span = left.get_span();
+        let right_span = right.get_span();
 
         let (left, ty, right) = {
-            if right.kind.is_strongly_typed() {
+            if right.is_strongly_typed() {
                 let right = self.build_expression_with_type(right, None)?;
                 let left = self.build_expression_with_type(left, Some(right.ty))?;
                 (left, right.ty, right)
@@ -261,7 +266,7 @@ impl ExpressionBuilder<'_> {
                 if let TypeKind::IntType(_) | TypeKind::FloatType(_) = ty {
                     (left, op, right, ty)
                 } else {
-                    return Err(SemanticErrorKind::InvalidBinOp);
+                    return Err(SemanticError::InvalidBinOp);
                 }
             }
 
@@ -269,7 +274,7 @@ impl ExpressionBuilder<'_> {
                 if let TypeKind::IntType(_) = ty {
                     (left, op, right, ty)
                 } else {
-                    return Err(SemanticErrorKind::InvalidBinOp);
+                    return Err(SemanticError::InvalidBinOp);
                 }
             }
 
@@ -277,7 +282,7 @@ impl ExpressionBuilder<'_> {
                 if let TypeKind::Boolean = ty {
                     (left, op, right, ty)
                 } else {
-                    return Err(SemanticErrorKind::InvalidBinOp);
+                    return Err(SemanticError::InvalidBinOp);
                 }
             }
 
@@ -287,7 +292,7 @@ impl ExpressionBuilder<'_> {
                         ExpressionKind::Assignment(lvalue, Box::new(right.with_span(right_span)));
                     return Ok(InnerExpression { kind, ty });
                 } else {
-                    return Err(SemanticErrorKind::LValue(left.with_span(left_span)));
+                    return Err(SemanticError::LValue(left.with_span(left_span)));
                 }
             }
         };

@@ -1,6 +1,6 @@
 use crate::token::Operator;
 
-use super::error::SemanticErrorKind;
+use super::error::SemanticError;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinaryOperator {
@@ -26,7 +26,7 @@ pub enum BinaryOperator {
 }
 
 impl TryFrom<Operator> for BinaryOperator {
-    type Error = SemanticErrorKind;
+    type Error = SemanticError;
     fn try_from(value: Operator) -> Result<Self, Self::Error> {
         match value {
             Operator::Equal => Ok(Self::Equal),
@@ -48,7 +48,7 @@ impl TryFrom<Operator> for BinaryOperator {
             Operator::LogicAnd => Ok(Self::LogicAnd),
             Operator::LogicOr => Ok(Self::LogicOr),
             Operator::Assign => Ok(Self::Assign),
-            _ => Err(SemanticErrorKind::NotBinOp(value)),
+            _ => Err(SemanticError::NotBinOp(value)),
         }
     }
 }
@@ -61,13 +61,13 @@ pub enum UnaryOperator {
 }
 
 impl TryFrom<Operator> for UnaryOperator {
-    type Error = SemanticErrorKind;
+    type Error = SemanticError;
     fn try_from(value: Operator) -> Result<Self, Self::Error> {
         match value {
             Operator::Minus => Ok(Self::Negative),
             Operator::Exclamation => Ok(Self::LogicNot),
             Operator::Tilde => Ok(Self::BitNot),
-            _ => Err(SemanticErrorKind::NotUnaryOp(value)),
+            _ => Err(SemanticError::NotUnaryOp(value)),
         }
     }
 }

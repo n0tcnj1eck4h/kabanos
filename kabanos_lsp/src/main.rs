@@ -1,7 +1,7 @@
 use kabanos_common::ast::parser::Parser;
 use kabanos_common::lexer::Lexer;
 use kabanos_common::semantic::Module;
-use kabanos_common::span::Span;
+use kabanos_common::span::{HasSpan, Span};
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -101,10 +101,10 @@ impl Backend {
             Ok(module) => {
                 if let Err(errs) = Module::build_module(module) {
                     for err in errs {
-                        let range = span_to_range(err.span);
+                        let range = span_to_range(err.get_span());
                         let diag = Diagnostic {
                             range,
-                            message: format!("{}", err),
+                            message: format!("{}", err.unwrap()),
                             ..Default::default()
                         };
                         diagnostics.push(diag);

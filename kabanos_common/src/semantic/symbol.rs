@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{error::SemanticErrorKind, types::TypeKind, FunctionDeclaration, Statement};
+use super::{error::SemanticError, types::TypeKind, FunctionDeclaration, Statement};
 
 #[derive(Debug)]
 pub struct Variable {
@@ -31,7 +31,7 @@ impl SymbolTable {
     pub fn declare_function(
         &mut self,
         fn_decl: FunctionDeclaration,
-    ) -> Result<FunctionID, SemanticErrorKind> {
+    ) -> Result<FunctionID, SemanticError> {
         let existing_id = self.get_function_id_by_decl(&fn_decl)?;
         Ok(existing_id.unwrap_or_else(|| {
             let name = fn_decl.name.clone();
@@ -45,7 +45,7 @@ impl SymbolTable {
     pub fn get_function_id_by_decl(
         &self,
         decl: &FunctionDeclaration,
-    ) -> Result<Option<FunctionID>, SemanticErrorKind> {
+    ) -> Result<Option<FunctionID>, SemanticError> {
         let name = &decl.name;
         let Some(my_decl_id) = self.function_lookup.get(name) else {
             return Ok(None);
@@ -53,7 +53,7 @@ impl SymbolTable {
 
         let my_decl = self.function_decls.get(my_decl_id.0).unwrap();
         if my_decl != decl {
-            return Err(SemanticErrorKind::SignatureMismatch);
+            return Err(SemanticError::SignatureMismatch);
         }
 
         Ok(Some(*my_decl_id))
@@ -67,9 +67,9 @@ impl SymbolTable {
         &mut self,
         id: FunctionID,
         body: Vec<Statement>,
-    ) -> Result<(), SemanticErrorKind> {
+    ) -> Result<(), SemanticError> {
         if self.function_defs.contains_key(&id) {
-            return Err(SemanticErrorKind::FunctionRedefiniton);
+            return Err(SemanticError::FunctionRedefiniton);
         }
         self.function_defs.insert(id, body);
         Ok(())

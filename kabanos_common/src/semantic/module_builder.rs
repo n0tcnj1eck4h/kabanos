@@ -4,10 +4,13 @@ use super::{
     error::SemanticError, primitive::Primitive, statement_builder::StatementBuilder,
     symbol::Variable, FunctionDeclaration, Module, Parameter,
 };
-use crate::ast::{self, FunctionDefinition, FunctionPrototype};
+use crate::{
+    ast::{self, FunctionDefinition, FunctionPrototype},
+    span::{Spanned, WithSpan as _},
+};
 
 impl Module {
-    pub fn build_module(ast_module: ast::Module) -> Result<Module, Vec<SemanticError>> {
+    pub fn build_module(ast_module: ast::Module) -> Result<Module, Vec<Spanned<SemanticError>>> {
         let mut module = Module::default();
         let mut errors = Vec::new();
 
@@ -36,7 +39,7 @@ impl Module {
         }
     }
 
-    fn build_delaration(&mut self, s: FunctionPrototype) -> Result<(), SemanticError> {
+    fn build_delaration(&mut self, s: FunctionPrototype) -> Result<(), Spanned<SemanticError>> {
         let span = s.span;
         let fn_decl = Self::build_declaration(s)?;
         self.symbol_table
@@ -45,7 +48,7 @@ impl Module {
         Ok(())
     }
 
-    fn build_definition(&mut self, s: FunctionDefinition) -> Result<(), SemanticError> {
+    fn build_definition(&mut self, s: FunctionDefinition) -> Result<(), Spanned<SemanticError>> {
         let span = s.prototype.span;
         let declaration = Self::build_declaration(s.prototype)?;
 
@@ -78,7 +81,7 @@ impl Module {
 
     fn build_declaration(
         prototype: ast::FunctionPrototype,
-    ) -> Result<FunctionDeclaration, SemanticError> {
+    ) -> Result<FunctionDeclaration, Spanned<SemanticError>> {
         let name = prototype.name;
         let ty = prototype
             .return_type

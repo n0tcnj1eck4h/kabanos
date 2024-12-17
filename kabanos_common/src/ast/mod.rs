@@ -1,7 +1,10 @@
 pub mod error;
 pub mod parser;
 
-use crate::{span::Span, token::Operator};
+use crate::{
+    span::{Span, Spanned},
+    token::Operator,
+};
 
 #[derive(Debug)]
 pub struct Module {
@@ -48,43 +51,41 @@ pub struct Parameter {
 #[derive(Debug, Clone)]
 pub enum Statement {
     Block(Vec<Statement>),
-    Conditional(Expression, Box<Statement>, Option<Box<Statement>>),
-    LocalVar(String, Option<String>, Option<Expression>),
-    Loop(Expression, Box<Statement>),
-    Expression(Expression),
-    Return(Option<Expression>),
+    Conditional(Spanned<Expression>, Box<Statement>, Option<Box<Statement>>),
+    LocalVar(
+        Spanned<String>,
+        Option<Spanned<String>>,
+        Option<Spanned<Expression>>,
+    ),
+    Loop(Spanned<Expression>, Box<Statement>),
+    Expression(Spanned<Expression>),
+    Return(Option<Spanned<Expression>>),
 }
 
 #[derive(Debug, Clone)]
-pub struct Expression {
-    pub kind: ExpressionKind,
-    pub span: Span,
-}
-
-#[derive(Debug, Clone)]
-pub enum ExpressionKind {
+pub enum Expression {
     IntegerLiteral(u64),
     FloatLiteral(f64),
     StringLiteral(String),
     BooleanLiteral(bool),
     Identifier(String),
-    BinaryOp(Box<Expression>, Operator, Box<Expression>),
-    UnaryOperation(Operator, Box<Expression>),
-    FunctionCall(String, Vec<Expression>),
+    BinaryOp(Box<Spanned<Expression>>, Operator, Box<Spanned<Expression>>),
+    UnaryOperation(Operator, Box<Spanned<Expression>>),
+    FunctionCall(String, Vec<Spanned<Expression>>),
 }
 
-impl ExpressionKind {
+impl Expression {
     pub fn is_strongly_typed(&self) -> bool {
         match self {
-            ExpressionKind::IntegerLiteral(_)
-            | ExpressionKind::FloatLiteral(_)
-            | ExpressionKind::BooleanLiteral(_)
-            | ExpressionKind::BinaryOp(_, _, _)
-            | ExpressionKind::UnaryOperation(_, _) => false,
+            Expression::IntegerLiteral(_)
+            | Expression::FloatLiteral(_)
+            | Expression::BooleanLiteral(_)
+            | Expression::BinaryOp(_, _, _)
+            | Expression::UnaryOperation(_, _) => false,
 
-            ExpressionKind::FunctionCall(_, _)
-            | ExpressionKind::Identifier(_)
-            | ExpressionKind::StringLiteral(_) => true,
+            Expression::FunctionCall(_, _)
+            | Expression::Identifier(_)
+            | Expression::StringLiteral(_) => true,
         }
     }
 }

@@ -1,9 +1,7 @@
 use std::str::FromStr;
 
-use crate::span::Span;
-
 #[derive(Debug, PartialEq, Clone)]
-pub enum TokenKind {
+pub enum Token {
     Identifier(String),
     IntegerLiteral(u64),
     FloatingPointLiteral(f64),
@@ -15,23 +13,23 @@ pub enum TokenKind {
     None,
 }
 
-impl std::fmt::Display for TokenKind {
+impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenKind::Identifier(name) => write!(f, "identifier {}", name),
-            TokenKind::IntegerLiteral(value) => write!(f, "integer {}", value),
-            TokenKind::FloatingPointLiteral(value) => write!(f, "float {}", value),
-            TokenKind::StringLiteral(value) => write!(f, "string \"{}\"", value),
-            TokenKind::BooleanLiteral(value) => write!(f, "bool {}", value),
-            TokenKind::Operator(op) => write!(f, "operator {:?}", op),
-            TokenKind::Keyword(keyword) => write!(f, "keyword {:?}", keyword),
-            TokenKind::Atom(atom) => write!(f, "'{}'", atom),
-            TokenKind::None => write!(f, "None"),
+            Token::Identifier(name) => write!(f, "identifier {}", name),
+            Token::IntegerLiteral(value) => write!(f, "integer {}", value),
+            Token::FloatingPointLiteral(value) => write!(f, "float {}", value),
+            Token::StringLiteral(value) => write!(f, "string \"{}\"", value),
+            Token::BooleanLiteral(value) => write!(f, "bool {}", value),
+            Token::Operator(op) => write!(f, "operator {:?}", op),
+            Token::Keyword(keyword) => write!(f, "keyword {:?}", keyword),
+            Token::Atom(atom) => write!(f, "'{}'", atom),
+            Token::None => write!(f, "None"),
         }
     }
 }
 
-impl Default for TokenKind {
+impl Default for Token {
     fn default() -> Self {
         Self::None
     }
@@ -39,23 +37,11 @@ impl Default for TokenKind {
 
 impl PartialEq<char> for Token {
     fn eq(&self, other: &char) -> bool {
-        if let TokenKind::Atom(ch) = self.kind {
-            ch == *other
+        if let Token::Atom(ch) = self {
+            ch == other
         } else {
             false
         }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub span: Span,
-}
-
-impl PartialEq<TokenKind> for Token {
-    fn eq(&self, other: &TokenKind) -> bool {
-        self.kind == *other
     }
 }
 
@@ -75,8 +61,8 @@ pub enum Keyword {
 
 impl PartialEq<Keyword> for Token {
     fn eq(&self, other: &Keyword) -> bool {
-        if let TokenKind::Keyword(keyword) = self.kind {
-            keyword == *other
+        if let Token::Keyword(keyword) = self {
+            keyword == other
         } else {
             false
         }
@@ -168,8 +154,8 @@ impl Operator {
 
 impl PartialEq<Operator> for Token {
     fn eq(&self, other: &Operator) -> bool {
-        if let TokenKind::Operator(op) = self.kind {
-            op == *other
+        if let Token::Operator(op) = self {
+            op == other
         } else {
             false
         }

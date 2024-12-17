@@ -1,14 +1,14 @@
 use std::str::FromStr;
 
 use crate::{
-    span::{Position, Span},
-    token::{Keyword, Operator, Token, TokenKind},
+    span::{Position, Span, Spanned, WithSpan},
+    token::{Keyword, Operator, Token},
 };
 
 pub struct Lexer<T> {
     stream: T,
     pos: Position,
-    token_start: Position,
+    span: Span,
     ch: Option<char>,
 }
 
@@ -19,24 +19,24 @@ where
     pub fn new(mut stream: T) -> Self {
         let ch = stream.next();
         let pos = Position { col: 0, row: 0 };
+        let span = Span::default();
         Lexer {
             stream,
             ch,
             pos,
-            token_start: pos,
+            span,
         }
     }
 
-    fn token(&self, kind: TokenKind) -> Option<Token> {
-        let span = Span {
-            start: self.token_start,
-            end: self.pos,
-        };
-        Some(Token { kind, span })
+    fn token(&mut self, kind: Token) -> Option<Spanned<Token>> {
+        let span = self.span;
+        self.span.start = self.pos;
+        Some(kind.with_span(span))
     }
 
     fn advance(&mut self) -> bool {
         self.ch = self.stream.next();
+        self.span.end = self.pos;
         if let Some('\n') = self.ch {
             self.pos.col = 0;
             self.pos.row += 1;
@@ -58,7 +58,7 @@ impl<T> Iterator for Lexer<T>
 where
     T: Iterator<Item = char>,
 {
-    type Item = Token;
+    type Item = Spanned<Token>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self.check(char::is_whitespace) {
@@ -69,8 +69,6 @@ where
             Some(character) => character,
             None => return None,
         };
-
-        self.token_start = self.pos;
 
         // Skip comments
         if ch == '#' {
@@ -95,14 +93,14 @@ where
             }
 
             if let Ok(keyword) = Keyword::from_str(&buf) {
-                return self.token(TokenKind::Keyword(keyword));
+                return self.token(Token::Keyword(keyword));
             }
 
             return match buf.as_str() {
-                "false" => self.token(TokenKind::BooleanLiteral(false)),
-                "true" => self.token(TokenKind::BooleanLiteral(true)),
-                "as" => self.token(TokenKind::Operator(Operator::As)),
-                _ => self.token(TokenKind::Identifier(buf)),
+                "false" => self.token(Token::BooleanLiteral(false)),
+                "true" => self.token(Token::BooleanLiteral(true)),
+                "as" => self.token(Token::Operator(Operator::As)),
+                _ => self.token(Token::Identifier(buf)),
             };
         }
 
@@ -123,15 +121,14 @@ where
                             denominator *= 10.0;
                             decimals += d as f64 / denominator;
                         } else {
-                            return self
-                                .token(TokenKind::FloatingPointLiteral(n as f64 + decimals));
+                            return self.token(Token::FloatingPointLiteral(n as f64 + decimals));
                         }
                     }
                 } else {
                     break;
                 }
             }
-            return self.token(TokenKind::IntegerLiteral(n));
+            return self.token(Token::IntegerLiteral(n));
         }
 
         if ch == '"' {
@@ -157,7 +154,7 @@ where
                 escaped = false;
                 self.advance();
             }
-            return self.token(TokenKind::StringLiteral(buf));
+            return self.token(Token::StringLiteral(buf));
         }
 
         self.advance();
@@ -191,9 +188,9 @@ where
         };
 
         if let Some(op) = op {
-            self.token(TokenKind::Operator(op))
+            self.token(Token::Operator(op))
         } else {
-            self.token(TokenKind::Atom(ch))
+            self.token(Token::Atom(ch))
         }
     }
 }

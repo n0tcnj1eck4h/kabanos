@@ -4,7 +4,6 @@
 use kabanos_common::ast::parser::Parser;
 use kabanos_common::lexer::Lexer;
 use kabanos_common::semantic::Module;
-use kabanos_common::token::Token;
 
 use std::{
     env::args_os,
@@ -16,7 +15,7 @@ fn main() {
         let contents = std::fs::read_to_string(filename).expect("Failed to read file");
 
         let lexer = Lexer::new(contents.chars());
-        let tokens: Vec<Token> = lexer.into_iter().collect();
+        let tokens: Vec<_> = lexer.into_iter().collect();
 
         let mut parser = Parser::new(tokens.into_iter()).expect("Stream is empty");
 

@@ -1,4 +1,7 @@
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    ops::{Deref, DerefMut},
+};
 
 #[derive(Default, Clone, PartialEq, Copy)]
 pub struct Span {
@@ -61,9 +64,40 @@ impl PartialOrd for Position {
     }
 }
 
+#[derive(Debug)]
 pub struct Spanned<T> {
-    pub span: Span,
-    pub inner: T,
+    span: Span,
+    inner: T,
+}
+
+impl<T> Spanned<T> {
+    pub fn unwrap(self) -> T {
+        self.inner
+    }
+}
+
+impl<T: PartialEq> PartialEq for Spanned<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.eq(other)
+    }
+}
+
+impl<T: Default> Default for Spanned<T> {
+    fn default() -> Self {
+        Self {
+            span: Span::default(),
+            inner: T::default(),
+        }
+    }
+}
+
+impl<T: Clone> Clone for Spanned<T> {
+    fn clone(&self) -> Self {
+        Self {
+            span: self.span.clone(),
+            inner: self.inner.clone(),
+        }
+    }
 }
 
 pub trait WithSpan {
@@ -85,5 +119,29 @@ impl<T: Display> Display for Spanned<T> {
             " on line {}, column {}",
             self.span.start.row, self.span.start.col
         )
+    }
+}
+
+pub trait HasSpan {
+    fn get_span(&self) -> Span;
+}
+
+impl<T> HasSpan for Spanned<T> {
+    fn get_span(&self) -> Span {
+        self.span
+    }
+}
+
+impl<T> Deref for Spanned<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T> DerefMut for Spanned<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
