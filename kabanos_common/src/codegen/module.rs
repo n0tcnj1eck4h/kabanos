@@ -1,85 +1,84 @@
-use inkwell::{context::Context, module::Module, types::BasicType, values::FunctionValue};
+use std::collections::HashMap;
 
-use crate::semantic;
-
-use super::{
-    error::CodegenResult,
-    symbol_table::{Symbol, SymbolTable},
+use inkwell::{
+    context::Context,
+    module::Module,
+    types::BasicType,
+    values::{FunctionValue, PointerValue},
 };
 
-impl semantic::Module {
-    pub fn build_module<'ctx>(
-        &self,
-        context: &'ctx Context,
-        name: &str,
-    ) -> CodegenResult<Module<'ctx>> {
-        let builder = context.create_builder();
-        let module = context.create_module(name);
-        let mut symbol_table = SymbolTable::default();
+use crate::semantic::{
+    self,
+    symbol::{SymbolTable, VariableID},
+};
 
-        for fn_dec in &self.declarations {
-            let function = fn_dec.build_function_prototype(context, &module);
-            symbol_table.add_function(fn_dec.name.clone(), function);
-        }
+use super::error::CodegenResult;
 
-        for fn_def in &self.functions {
-            let function = fn_def
-                .declaration
-                .build_function_prototype(context, &module);
-            symbol_table.add_function(fn_def.declaration.name.clone(), function);
-        }
-
-        for fn_def in &self.functions {
-            symbol_table.push_scope();
-
-            let function = symbol_table.get_function(&fn_def.declaration.name).unwrap();
-            let block = context.append_basic_block(function, "entry");
-            builder.position_at_end(block);
-
-            for (i, p) in fn_def.declaration.params.iter().enumerate() {
-                let param = function.get_nth_param(i as u32).unwrap();
-                param.set_name(&p.name);
-
-                let ptr = builder.build_alloca(param.get_type(), "param_ptr")?;
-                builder.build_store(ptr, param)?;
-
-                let ty = param.get_type();
-
-                let symbol = Symbol { ptr, ty };
-
-                symbol_table.push_value(&p.name, symbol);
-            }
-
-            for statement in &fn_def.body {
-                statement.build_statement(context, &builder, function, &mut symbol_table)?;
-            }
-
-            symbol_table.pop_scope();
-        }
-
-        Ok(module)
-    }
+pub struct ModuleCoden<'ctx> {
+    context: &'ctx Context,
+    module: Module<'ctx>,
+    variables: HashMap<VariableID, PointerValue<'ctx>>,
 }
 
-impl semantic::FunctionDeclaration {
-    fn build_function_prototype<'ctx>(
+impl ModuleCoden<'_> {
+    pub fn build_module<'ctx>(
         &self,
-        context: &'ctx Context,
-        module: &Module<'ctx>,
-    ) -> FunctionValue<'ctx> {
-        let mut params = Vec::new();
-        for param in self.params.iter() {
-            params.push(param.ty.to_llvm_type(context).into());
+        module: semantic::Module,
+        name: &str,
+    ) -> CodegenResult<Module<'ctx>> {
+        let builder = self.context.create_builder();
+
+        for fn_id in module.symbol_table.iterate_functions() {
+            let fn_dec = module.symbol_table.get_function(fn_id);
+            let function = self.build_function_prototype(fn_dec, &module.symbol_table);
+
+            if let Some(fn_body) = module.symbol_table.get_function_body(fn_id) {
+                let block = self.context.append_basic_block(function, "entry");
+                builder.position_at_end(block);
+
+                for (param, id) in function.get_params().into_iter().zip(&fn_dec.params) {
+                    let p = module.symbol_table.get_variable(*id);
+                    param.set_name(&p.identifier);
+
+                    let ptr = builder.build_alloca(param.get_type(), "param_ptr")?;
+                    builder.build_store(ptr, param)?;
+
+                    self.variables.insert(*id, ptr);
+                }
+
+                for statement in fn_body {
+                    statement.build_statement(
+                        self.context,
+                        &builder,
+                        function,
+                        &mut self.module,
+                    )?;
+                }
+            }
         }
 
-        let fn_type = match self.ty {
+        Ok(self.module)
+    }
+
+    fn build_function_prototype<'ctx>(
+        &'ctx self,
+        fn_decl: &semantic::FunctionDeclaration,
+        symbol_table: &SymbolTable,
+    ) -> FunctionValue<'ctx> {
+        let mut params = Vec::new();
+        for param_id in &fn_decl.params {
+            let param = symbol_table.get_variable(*param_id);
+            params.push(param.ty.to_llvm_type(self.context).into());
+        }
+
+        let fn_type = match fn_decl.ty {
             Some(t) => {
-                let return_type = t.to_llvm_type(context);
+                let return_type = t.to_llvm_type(self.context);
                 return_type.fn_type(&params, false)
             }
-            None => context.void_type().fn_type(&params, false),
+            None => self.context.void_type().fn_type(&params, false),
         };
 
-        module.add_function(&self.name, fn_type, None)
+        self.module.add_function(&fn_decl.name, fn_type, None)
     }
 }

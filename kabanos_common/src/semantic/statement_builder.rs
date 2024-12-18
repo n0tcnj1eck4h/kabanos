@@ -62,7 +62,8 @@ impl StatementBuilder<'_> {
                             let args: Result<Vec<_>, _> = params
                                 .iter()
                                 .zip(args)
-                                .map(|(param, expr)| {
+                                .map(|(param_id, expr)| {
+                                    let param = self.symbol_table.get_variable(*param_id);
                                     self.build_expression(expr.clone(), Some(param.ty))
                                 })
                                 .collect();
@@ -108,7 +109,7 @@ impl StatementBuilder<'_> {
 
                     let identifier = identifier.unwrap();
                     let symbol = Variable { identifier, ty };
-                    let symbol_id = self.symbol_table.push_local_var(symbol);
+                    let symbol_id = self.symbol_table.add_variable(symbol);
 
                     if let Some(expr) = expr {
                         let span = expr.get_span();

@@ -1,107 +1,124 @@
-use inkwell::{builder::Builder, context::Context, values::FunctionValue};
+use std::collections::HashMap;
 
-use crate::semantic;
-
-use super::{
-    error::CodegenResult,
-    symbol_table::{Symbol, SymbolTable},
+use inkwell::{
+    builder::Builder,
+    context::Context,
+    module::Module,
+    values::{BasicValueEnum, FunctionValue, PointerValue},
 };
 
-impl semantic::Statement {
-    pub fn build_statement<'ctx>(
-        &self,
-        context: &'ctx Context,
-        builder: &Builder<'ctx>,
-        function: FunctionValue,
-        symbol_table: &mut SymbolTable<'ctx>,
-    ) -> CodegenResult {
-        match self {
-            Self::LocalVar(ref name, ref datatype, ref value) => {
-                let ty = datatype.to_llvm_type(context);
+use crate::semantic::{
+    self,
+    symbol::{SymbolTable, VariableID},
+    Scope,
+};
 
-                let ptr = builder.build_alloca(ty, &name)?;
-                if let Some(expression) = value {
-                    let value = expression.build_expression(context, builder, symbol_table)?;
-                    builder.build_store(ptr, void_check(value)?)?;
-                }
+use super::error::CodegenResult;
 
-                let symbol = Symbol { ptr, ty };
+pub struct StatementCodegen<'ctx> {
+    context: &'ctx Context,
+    builder: Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    module: Module<'ctx>,
+    variables: HashMap<VariableID, PointerValue<'ctx>>,
+    symbol_table: &'ctx SymbolTable,
+}
 
-                symbol_table.push_value(name, symbol);
-                Ok(())
-            }
-            Self::Conditional(condition, block, else_block_) => {
-                let condition =
-                    void_check(condition.build_expression(context, builder, symbol_table)?)?;
+impl StatementCodegen<'_> {
+    pub fn build_statement<'ctx>(&mut self, stmt: semantic::Statement) -> CodegenResult {
+        use semantic::Statement::*;
+        match stmt {
+            Conditional(condition, body, body_else) => {
+                let condition = self.build_expression(condition)?;
 
-                let then_block = context.append_basic_block(function, "then");
-                let else_block = context.append_basic_block(function, "else");
-                let merge_block = context.append_basic_block(function, "merge");
+                let then_block = self.context.append_basic_block(self.function, "then");
+                let else_block = self.context.append_basic_block(self.function, "else");
+                let merge_block = self.context.append_basic_block(self.function, "merge");
 
-                builder.build_conditional_branch(
-                    condition.into_int_value(), // lol
+                self.builder.build_conditional_branch(
+                    condition.into_int_value(),
                     then_block,
                     else_block,
                 )?;
 
-                builder.position_at_end(then_block);
-                block.build_statement(context, builder, function, symbol_table)?;
-                builder.build_unconditional_branch(merge_block)?;
-
-                builder.position_at_end(else_block);
-                if let Some(else_block_) = else_block_ {
-                    else_block_.build_statement(context, builder, function, symbol_table)?;
+                self.builder.position_at_end(then_block);
+                for statement in body {
+                    self.build_statement(statement)?;
                 }
-                builder.build_unconditional_branch(merge_block)?;
+                self.builder.build_unconditional_branch(merge_block)?;
 
-                builder.position_at_end(merge_block);
+                self.builder.position_at_end(else_block);
+                if let Some(body_else) = body_else {
+                    for statement in body_else {
+                        self.build_statement(statement)?;
+                    }
+                }
+                self.builder.build_unconditional_branch(merge_block)?;
+
+                self.builder.position_at_end(merge_block);
                 Ok(())
             }
-            Self::Loop(condition, body) => {
-                let loop_block = context.append_basic_block(function, "loop");
-                let body_block = context.append_basic_block(function, "body");
-                let continue_block = context.append_basic_block(function, "continue");
+            Loop(condition, body) => {
+                let loop_block = self.context.append_basic_block(self.function, "loop");
+                let body_block = self.context.append_basic_block(self.function, "body");
+                let continue_block = self.context.append_basic_block(self.function, "continue");
 
-                builder.build_unconditional_branch(loop_block)?;
-                builder.position_at_end(loop_block);
+                self.builder.build_unconditional_branch(loop_block)?;
+                self.builder.position_at_end(loop_block);
 
-                let condition =
-                    void_check(condition.build_expression(context, builder, symbol_table)?)?;
+                let condition = self.build_expression(condition)?;
 
-                builder.build_conditional_branch(
-                    condition.into_int_value(), // lol
+                self.builder.build_conditional_branch(
+                    condition.into_int_value(),
                     body_block,
                     continue_block,
                 )?;
 
-                builder.position_at_end(body_block);
-                body.build_statement(context, builder, function, symbol_table)?;
-                builder.build_unconditional_branch(loop_block)?;
+                self.builder.position_at_end(body_block);
+                for statement in body {
+                    self.build_statement(statement)?;
+                }
+                self.builder.build_unconditional_branch(loop_block)?;
 
-                builder.position_at_end(continue_block);
+                self.builder.position_at_end(continue_block);
                 Ok(())
             }
-            Self::Block(statements) => {
-                symbol_table.push_scope();
-                for statement in statements {
-                    statement.build_statement(context, builder, function, symbol_table)?;
+            Block(Scope { symbol, body }) => {
+                let variable = self.symbol_table.get_variable(symbol);
+                let ty = variable.ty.to_llvm_type(self.context);
+
+                let ptr = self.builder.build_alloca(ty, &variable.identifier)?;
+                self.variables.insert(symbol, ptr);
+                // if let Some(expression) = value {
+                //     let value = expression.build_expression(context, builder, symbol_table)?;
+                //     builder.build_store(ptr, void_check(value)?)?;
+                // }
+                for statement in body {
+                    self.build_statement(statement)?;
                 }
-                symbol_table.pop_scope();
                 Ok(())
             }
-            Self::Return(expression) => {
+            Return(expression) => {
                 if let Some(expression) = expression {
-                    let ret_value = expression.build_expression(context, builder, symbol_table)?;
-                    builder.build_return(Some(&void_check(ret_value)?))?;
+                    let ret_value = self.build_expression(expression)?;
+                    self.builder.build_return(Some(&ret_value))?;
                 } else {
-                    builder.build_return(None)?;
+                    self.builder.build_return(None)?;
                 }
                 Ok(())
             }
-            Self::Expression(expression) => {
-                expression.build_expression(context, builder, symbol_table)?;
+            Expression(expression) => {
+                self.build_expression(expression)?;
                 Ok(())
             }
+            VoidFunctionCall(function_declaration, vec) => todo!(),
         }
+    }
+
+    fn build_expression<'ctx>(
+        &self,
+        expr: semantic::expression::Expression,
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
+        todo!()
     }
 }

@@ -8,7 +8,7 @@ pub struct Variable {
     pub ty: TypeKind,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct VariableID(usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -16,14 +16,14 @@ pub struct FunctionID(usize);
 
 #[derive(Default, Debug)]
 pub struct SymbolTable {
-    variables: Vec<Variable>,
-    function_decls: Vec<FunctionDeclaration>,
-    function_defs: HashMap<FunctionID, Vec<Statement>>,
-    function_lookup: HashMap<String, FunctionID>,
+    pub variables: Vec<Variable>,
+    pub function_decls: Vec<FunctionDeclaration>,
+    pub function_defs: HashMap<FunctionID, Vec<Statement>>,
+    pub function_lookup: HashMap<String, FunctionID>,
 }
 
 impl SymbolTable {
-    pub fn push_local_var(&mut self, symbol: Variable) -> VariableID {
+    pub fn add_variable(&mut self, symbol: Variable) -> VariableID {
         self.variables.push(symbol);
         VariableID(self.variables.len() - 1)
     }
@@ -40,6 +40,14 @@ impl SymbolTable {
             self.function_lookup.insert(name, id);
             id
         }))
+    }
+
+    pub fn iterate_functions(&self) -> impl Iterator<Item = FunctionID> {
+        (0..self.function_defs.len()).map(|i| FunctionID(i))
+    }
+
+    pub fn get_function_body(&self, fn_id: FunctionID) -> Option<&[Statement]> {
+        self.function_defs.get(&fn_id).map(AsRef::as_ref)
     }
 
     pub fn get_function_id_by_decl(

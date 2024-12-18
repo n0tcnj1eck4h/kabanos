@@ -68,6 +68,7 @@ impl ExpressionBuilder<'_> {
             }
         }?;
 
+        // TODO: this crashes on while n + i {}
         if let Some(expected_ty) = self.expected_ty {
             assert_eq!(expr.ty, expected_ty);
         }
@@ -198,8 +199,9 @@ impl ExpressionBuilder<'_> {
         let args: Result<Vec<_>, _> = args
             .into_iter()
             .zip(params)
-            .map(|(arg, param)| {
+            .map(|(arg, param_id)| {
                 let span = arg.get_span();
+                let param = self.symbol_table.get_variable(*param_id);
                 let expr = self.build_expression_with_type(arg, Some(param.ty))?;
                 Ok(super::Expression {
                     kind: expr.kind,

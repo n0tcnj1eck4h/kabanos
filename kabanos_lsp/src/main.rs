@@ -105,6 +105,7 @@ impl Backend {
                         let diag = Diagnostic {
                             range,
                             message: format!("{}", err.unwrap()),
+                            severity: Some(DiagnosticSeverity::ERROR),
                             ..Default::default()
                         };
                         diagnostics.push(diag);

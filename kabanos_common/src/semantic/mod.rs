@@ -14,7 +14,7 @@ use types::TypeKind;
 
 #[derive(Default, Debug)]
 pub struct Module {
-    symbol_table: SymbolTable,
+    pub symbol_table: SymbolTable,
 }
 
 #[derive(Debug)]
@@ -26,14 +26,8 @@ pub struct Scope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionDeclaration {
     pub name: String,
-    pub params: Vec<Parameter>,
+    pub params: Vec<VariableID>,
     pub ty: Option<TypeKind>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Parameter {
-    pub name: String,
-    pub ty: TypeKind,
 }
 
 #[derive(Debug)]

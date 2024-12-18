@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use super::{
     error::SemanticError, primitive::Primitive, statement_builder::StatementBuilder,
-    symbol::Variable, FunctionDeclaration, Module, Parameter,
+    symbol::Variable, FunctionDeclaration, Module,
 };
 use crate::{
     ast::{self, FunctionDefinition, FunctionPrototype},
@@ -41,7 +41,7 @@ impl Module {
 
     fn build_delaration(&mut self, s: FunctionPrototype) -> Result<(), Spanned<SemanticError>> {
         let span = s.span;
-        let fn_decl = Self::build_declaration(s)?;
+        let fn_decl = self.build_declaration(s)?;
         self.symbol_table
             .declare_function(fn_decl)
             .map_err(|e| e.with_span(span))?;
@@ -50,12 +50,13 @@ impl Module {
 
     fn build_definition(&mut self, s: FunctionDefinition) -> Result<(), Spanned<SemanticError>> {
         let span = s.prototype.span;
-        let declaration = Self::build_declaration(s.prototype)?;
+        let declaration = self.build_declaration(s.prototype)?;
 
         let mut stack = Vec::new();
-        for param in &declaration.params {
-            let id = self.symbol_table.push_local_var(Variable {
-                identifier: param.name.clone(),
+        for param_id in &declaration.params {
+            let param = self.symbol_table.get_variable(*param_id);
+            let id = self.symbol_table.add_variable(Variable {
+                identifier: param.identifier.clone(),
                 ty: param.ty,
             });
             stack.push(id);
@@ -80,6 +81,7 @@ impl Module {
     }
 
     fn build_declaration(
+        &mut self,
         prototype: ast::FunctionPrototype,
     ) -> Result<FunctionDeclaration, Spanned<SemanticError>> {
         let name = prototype.name;
@@ -92,12 +94,13 @@ impl Module {
 
         let mut params = Vec::new();
         for p in prototype.parameters {
-            let name = p.name;
+            let identifier = p.name;
             let ty = Primitive::from_str(&p.ty)
                 .map_err(|e| e.with_span(p.span))?
                 .into();
-            let param = Parameter { name, ty };
-            params.push(param);
+            let param = Variable { identifier, ty };
+            let param_id = self.symbol_table.add_variable(param);
+            params.push(param_id);
         }
 
         Ok(FunctionDeclaration { name, ty, params })
