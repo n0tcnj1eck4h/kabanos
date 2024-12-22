@@ -181,7 +181,9 @@ impl ExpressionBuilder<'_> {
 
         let fn_decl = self.symbol_table.get_function(fn_id);
         if let Some(expected_ty) = self.expected_ty {
-            let fn_ty = fn_decl.ty.unwrap();
+            let Some(fn_ty) = fn_decl.ty else {
+                return Err(SemanticError::VoidOperation);
+            };
             if fn_ty != expected_ty {
                 return Err(SemanticError::TypeMismatch {
                     expected: expected_ty,
@@ -199,9 +201,8 @@ impl ExpressionBuilder<'_> {
         let args: Result<Vec<_>, _> = args
             .into_iter()
             .zip(params)
-            .map(|(arg, param_id)| {
+            .map(|(arg, param)| {
                 let span = arg.get_span();
-                let param = self.symbol_table.get_variable(*param_id);
                 let expr = self.build_expression_with_type(arg, Some(param.ty))?;
                 Ok(super::Expression {
                     kind: expr.kind,

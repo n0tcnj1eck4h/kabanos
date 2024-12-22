@@ -30,8 +30,8 @@ impl Display for ParsingError {
     }
 }
 
-impl ParsingError {
-    pub fn get_span(&self) -> Span {
+impl HasSpan for ParsingError {
+    fn get_span(&self) -> Span {
         match self {
             ParsingError::UnexpectedTokenError(token)
             | ParsingError::ExpressionExpectedError(token)

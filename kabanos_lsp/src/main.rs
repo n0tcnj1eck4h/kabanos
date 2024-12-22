@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use kabanos_common::ast::parser::Parser;
 use kabanos_common::lexer::Lexer;
 use kabanos_common::semantic::Module;
@@ -8,13 +10,22 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 #[derive(Debug)]
-struct Backend {
+struct KabanosLSPBackend {
     client: Client,
-    text: Mutex<String>,
+    code: Mutex<String>,
+}
+
+impl KabanosLSPBackend {
+    fn new(client: Client) -> Self {
+        Self {
+            client,
+            code: Mutex::default(),
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
-impl LanguageServer for Backend {
+impl LanguageServer for KabanosLSPBackend {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         let capabilities = ServerCapabilities {
             position_encoding: Some(PositionEncodingKind::UTF8),
@@ -59,14 +70,14 @@ impl LanguageServer for Backend {
         let uri = params.text_document.uri;
         let version = params.text_document.version;
 
-        let mut guard = self.text.lock().await;
+        let mut guard = self.code.lock().await;
         *guard = text;
         drop(guard);
         self.diagnose(uri, version).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        let mut guard = self.text.lock().await;
+        let mut guard = self.code.lock().await;
         for change in params.content_changes {
             *guard = change.text;
         }
@@ -76,9 +87,9 @@ impl LanguageServer for Backend {
     }
 }
 
-impl Backend {
+impl KabanosLSPBackend {
     async fn diagnose(&self, uri: Url, version: i32) {
-        let text = self.text.lock().await;
+        let text = self.code.lock().await;
 
         let lexer = Lexer::new(text.chars());
         let parser = Parser::new(lexer);
@@ -90,26 +101,11 @@ impl Backend {
 
         match parser.module() {
             Err(err) => {
-                let range = span_to_range(err.get_span());
-                let diag = Diagnostic {
-                    range,
-                    message: format!("{}", err),
-                    ..Default::default()
-                };
-                diagnostics.push(diag);
+                diagnostics.push(err_to_diagnostic(err));
             }
             Ok(module) => {
                 if let Err(errs) = Module::build_module(module) {
-                    for err in errs {
-                        let range = span_to_range(err.get_span());
-                        let diag = Diagnostic {
-                            range,
-                            message: format!("{}", err.unwrap()),
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            ..Default::default()
-                        };
-                        diagnostics.push(diag);
-                    }
+                    diagnostics.extend(errs.into_iter().map(err_to_diagnostic));
                 }
             }
         };
@@ -117,6 +113,16 @@ impl Backend {
         self.client
             .publish_diagnostics(uri, diagnostics, Some(version))
             .await;
+    }
+}
+
+fn err_to_diagnostic(err: impl Display + HasSpan) -> Diagnostic {
+    let range = span_to_range(err.get_span());
+    Diagnostic {
+        range,
+        message: format!("{}", err),
+        severity: Some(DiagnosticSeverity::ERROR),
+        ..Default::default()
     }
 }
 
@@ -143,9 +149,6 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| Backend {
-        client,
-        text: Mutex::default(),
-    });
+    let (service, socket) = LspService::new(KabanosLSPBackend::new);
     Server::new(stdin, stdout, socket).serve(service).await;
 }

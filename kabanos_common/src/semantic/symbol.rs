@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{error::SemanticError, types::TypeKind, FunctionDeclaration, Statement};
+use super::{error::SemanticError, types::TypeKind, FunctionDeclaration, FunctionDefinition};
 
 #[derive(Debug)]
 pub struct Variable {
@@ -18,7 +18,7 @@ pub struct FunctionID(usize);
 pub struct SymbolTable {
     pub variables: Vec<Variable>,
     pub function_decls: Vec<FunctionDeclaration>,
-    pub function_defs: HashMap<FunctionID, Vec<Statement>>,
+    pub function_defs: HashMap<FunctionID, FunctionDefinition>,
     pub function_lookup: HashMap<String, FunctionID>,
 }
 
@@ -46,8 +46,8 @@ impl SymbolTable {
         (0..self.function_defs.len()).map(|i| FunctionID(i))
     }
 
-    pub fn get_function_body(&self, fn_id: FunctionID) -> Option<&[Statement]> {
-        self.function_defs.get(&fn_id).map(AsRef::as_ref)
+    pub fn get_function_body(&self, fn_id: FunctionID) -> Option<&FunctionDefinition> {
+        self.function_defs.get(&fn_id)
     }
 
     pub fn get_function_id_by_decl(
@@ -74,12 +74,12 @@ impl SymbolTable {
     pub fn define_function(
         &mut self,
         id: FunctionID,
-        body: Vec<Statement>,
+        definition: FunctionDefinition,
     ) -> Result<(), SemanticError> {
         if self.function_defs.contains_key(&id) {
             return Err(SemanticError::FunctionRedefiniton);
         }
-        self.function_defs.insert(id, body);
+        self.function_defs.insert(id, definition);
         Ok(())
     }
 

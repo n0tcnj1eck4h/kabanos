@@ -2,10 +2,10 @@ use std::str::FromStr;
 
 use super::{
     error::SemanticError, primitive::Primitive, statement_builder::StatementBuilder,
-    symbol::Variable, FunctionDeclaration, Module,
+    symbol::Variable, FunctionDeclaration, FunctionDefinition, FunctionParam, Module,
 };
 use crate::{
-    ast::{self, FunctionDefinition, FunctionPrototype},
+    ast,
     span::{Spanned, WithSpan as _},
 };
 
@@ -39,7 +39,10 @@ impl Module {
         }
     }
 
-    fn build_delaration(&mut self, s: FunctionPrototype) -> Result<(), Spanned<SemanticError>> {
+    fn build_delaration(
+        &mut self,
+        s: ast::FunctionPrototype,
+    ) -> Result<(), Spanned<SemanticError>> {
         let span = s.span;
         let fn_decl = self.build_declaration(s)?;
         self.symbol_table
@@ -48,18 +51,22 @@ impl Module {
         Ok(())
     }
 
-    fn build_definition(&mut self, s: FunctionDefinition) -> Result<(), Spanned<SemanticError>> {
+    fn build_definition(
+        &mut self,
+        s: ast::FunctionDefinition,
+    ) -> Result<(), Spanned<SemanticError>> {
         let span = s.prototype.span;
         let declaration = self.build_declaration(s.prototype)?;
 
         let mut stack = Vec::new();
-        for param_id in &declaration.params {
-            let param = self.symbol_table.get_variable(*param_id);
+        let mut params = Vec::new();
+        for param in &declaration.params {
             let id = self.symbol_table.add_variable(Variable {
                 identifier: param.identifier.clone(),
                 ty: param.ty,
             });
             stack.push(id);
+            params.push(id);
         }
 
         let mut statement_builder = StatementBuilder {
@@ -75,7 +82,7 @@ impl Module {
             .map_err(|e| e.with_span(span))?
             .expect("Function not forward declared");
         self.symbol_table
-            .define_function(decl_id, body)
+            .define_function(decl_id, FunctionDefinition { body, params })
             .map_err(|e| e.with_span(span))?;
         Ok(())
     }
@@ -98,9 +105,8 @@ impl Module {
             let ty = Primitive::from_str(&p.ty)
                 .map_err(|e| e.with_span(p.span))?
                 .into();
-            let param = Variable { identifier, ty };
-            let param_id = self.symbol_table.add_variable(param);
-            params.push(param_id);
+            let param = FunctionParam { identifier, ty };
+            params.push(param);
         }
 
         Ok(FunctionDeclaration { name, ty, params })

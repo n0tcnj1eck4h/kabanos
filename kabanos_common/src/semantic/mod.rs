@@ -26,8 +26,20 @@ pub struct Scope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionDeclaration {
     pub name: String,
-    pub params: Vec<VariableID>,
+    pub params: Vec<FunctionParam>,
     pub ty: Option<TypeKind>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionParam {
+    pub identifier: String,
+    pub ty: TypeKind,
+}
+
+#[derive(Debug)]
+pub struct FunctionDefinition {
+    pub body: Vec<Statement>,
+    pub params: Vec<VariableID>,
 }
 
 #[derive(Debug)]
