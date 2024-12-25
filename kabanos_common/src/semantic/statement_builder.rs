@@ -12,7 +12,7 @@ use super::{
     primitive::Primitive,
     symbol::{SymbolTable, Variable, VariableID},
     types::TypeKind,
-    Scope, Statement,
+    FunctionCall, Scope, Statement,
 };
 
 pub struct StatementBuilder<'a> {
@@ -59,6 +59,7 @@ impl StatementBuilder<'_> {
                             if params.len() != args.len() {
                                 return Err(SemanticError::WrongArgumentCount.with_span(span));
                             }
+
                             let args: Result<Vec<_>, _> = params
                                 .iter()
                                 .zip(args)
@@ -67,7 +68,12 @@ impl StatementBuilder<'_> {
                                 })
                                 .collect();
 
-                            statements.push(Statement::VoidFunctionCall(fn_decl.clone(), args?));
+                            let call = FunctionCall {
+                                id: fn_id,
+                                args: args?,
+                            };
+
+                            statements.push(Statement::VoidFunctionCall(call));
                             continue;
                         }
                     }
@@ -110,22 +116,23 @@ impl StatementBuilder<'_> {
                     let symbol = Variable { identifier, ty };
                     let symbol_id = self.symbol_table.add_variable(symbol);
 
+                    let mut body = Vec::new();
                     if let Some(expr) = expr {
                         let span = expr.get_span();
                         let expr = self.build_expression(expr, Some(ty))?;
                         let ty = expr.ty;
                         let kind =
                             ExpressionKind::Assignment(LValue::LocalVar(symbol_id), Box::new(expr));
-                        statements.push(Statement::Expression(Expression { kind, ty, span }));
+                        body.push(Statement::Expression(Expression { kind, ty, span }));
                     };
 
                     self.stack.push(symbol_id);
-                    let s = self.build_statements(iter)?;
+                    body.extend(self.build_statements(iter)?.into_iter());
                     self.stack.pop();
 
                     let scope = Scope {
-                        symbol: symbol_id,
-                        body: s,
+                        variable_id: symbol_id,
+                        body,
                     };
 
                     statements.push(Statement::Block(scope));

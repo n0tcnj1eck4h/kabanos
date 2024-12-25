@@ -1,9 +1,10 @@
 // mod codegen;
 
 // use codegen::ModuleProvider;
-use kabanos_common::ast::parser::Parser;
+use kabanos_common::codegen::module::ModuleCodegen;
 use kabanos_common::lexer::Lexer;
 use kabanos_common::semantic::Module;
+use kabanos_common::{ast::parser::Parser, semantic::module_builder};
 
 use std::{
     env::args_os,
@@ -29,7 +30,15 @@ fn main() {
             Err(err) => return println!("Semantic error: {:?}", err),
         };
 
-        dbg!(module);
+        let codegen = ModuleCodegen::new();
+        let module = match codegen.build_module(module, "main") {
+            Ok(module) => module,
+            Err(err) => return println!("Codegen error: {:?}", err),
+        };
+
+        module
+            .print_to_file("out.ll")
+            .expect("Failed to write module to file");
     } else {
         let stdin = io::stdin();
         let mut buf = String::new();

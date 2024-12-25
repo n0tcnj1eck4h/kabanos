@@ -9,7 +9,7 @@ pub mod symbol;
 pub mod types;
 
 use expression::Expression;
-use symbol::{SymbolTable, VariableID};
+use symbol::{FunctionID, SymbolTable, VariableID};
 use types::TypeKind;
 
 #[derive(Default, Debug)]
@@ -19,7 +19,7 @@ pub struct Module {
 
 #[derive(Debug)]
 pub struct Scope {
-    pub symbol: VariableID,
+    pub variable_id: VariableID,
     pub body: Vec<Statement>,
 }
 
@@ -42,10 +42,16 @@ pub struct FunctionDefinition {
     pub params: Vec<VariableID>,
 }
 
+#[derive(Debug, Clone)]
+pub struct FunctionCall {
+    pub id: FunctionID,
+    pub args: Vec<Expression>,
+}
+
 #[derive(Debug)]
 pub enum Statement {
     Conditional(Expression, Vec<Statement>, Option<Vec<Statement>>),
-    VoidFunctionCall(FunctionDeclaration, Vec<Expression>),
+    VoidFunctionCall(FunctionCall),
     Loop(Expression, Vec<Statement>),
     Return(Option<Expression>),
     Expression(Expression),

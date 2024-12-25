@@ -1,55 +1,87 @@
 use crate::token::Operator;
 
-use super::error::SemanticError;
+use super::{error::SemanticError, types::TypeKind};
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BinaryOperator {
+    Logic(LogicOp),
+    Bitwise(BitwiseOp),
+    Arithmetic(ArithmeticOp),
+    Comparaison(ComparaisonOp),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum LogicOp {
+    LogicAnd,
+    LogicOr,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum BitwiseOp {
+    BitAnd,
+    BitOr,
+    BitXor,
+    BitLeft,
+    BitRight,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum ArithmeticOp {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum ComparaisonOp {
     Equal,
     Less,
     Greater,
     LessOrEqual,
     GreaterOrEqual,
     NotEqual,
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Modulo,
-    BitAnd,
-    BitOr,
-    BitXor,
-    BitLeft,
-    BitRight,
-    LogicAnd,
-    LogicOr,
-    Assign,
 }
 
 impl TryFrom<Operator> for BinaryOperator {
     type Error = SemanticError;
     fn try_from(value: Operator) -> Result<Self, Self::Error> {
-        match value {
-            Operator::Equal => Ok(Self::Equal),
-            Operator::Less => Ok(Self::Less),
-            Operator::Greater => Ok(Self::Greater),
-            Operator::LessOrEqual => Ok(Self::LessOrEqual),
-            Operator::GreaterOrEqual => Ok(Self::GreaterOrEqual),
-            Operator::NotEqual => Ok(Self::NotEqual),
-            Operator::Add => Ok(Self::Add),
-            Operator::Minus => Ok(Self::Subtract),
-            Operator::Asterisk => Ok(Self::Multiply),
-            Operator::Divide => Ok(Self::Divide),
-            Operator::Modulo => Ok(Self::Modulo),
-            Operator::Ampersand => Ok(Self::BitAnd),
-            Operator::Pipe => Ok(Self::BitOr),
-            Operator::Caret => Ok(Self::BitXor),
-            Operator::LeftShift => Ok(Self::BitLeft),
-            Operator::RightShift => Ok(Self::BitRight),
-            Operator::LogicAnd => Ok(Self::LogicAnd),
-            Operator::LogicOr => Ok(Self::LogicOr),
-            Operator::Assign => Ok(Self::Assign),
-            _ => Err(SemanticError::NotBinOp(value)),
-        }
+        use BinaryOperator::*;
+        Ok(match value {
+            Operator::Equal => Comparaison(ComparaisonOp::Equal),
+            Operator::Less => Comparaison(ComparaisonOp::Less),
+            Operator::Greater => Comparaison(ComparaisonOp::Greater),
+            Operator::LessOrEqual => Comparaison(ComparaisonOp::LessOrEqual),
+            Operator::GreaterOrEqual => Comparaison(ComparaisonOp::GreaterOrEqual),
+            Operator::NotEqual => Comparaison(ComparaisonOp::NotEqual),
+            Operator::Add => Arithmetic(ArithmeticOp::Add),
+            Operator::Minus => Arithmetic(ArithmeticOp::Subtract),
+            Operator::Asterisk => Arithmetic(ArithmeticOp::Multiply),
+            Operator::Divide => Arithmetic(ArithmeticOp::Divide),
+            Operator::Modulo => Arithmetic(ArithmeticOp::Modulo),
+            Operator::Ampersand => Bitwise(BitwiseOp::BitAnd),
+            Operator::Pipe => Bitwise(BitwiseOp::BitOr),
+            Operator::Caret => Bitwise(BitwiseOp::BitXor),
+            Operator::LeftShift => Bitwise(BitwiseOp::BitLeft),
+            Operator::RightShift => Bitwise(BitwiseOp::BitRight),
+            Operator::LogicAnd => Logic(LogicOp::LogicAnd),
+            Operator::LogicOr => Logic(LogicOp::LogicOr),
+            _ => return Err(SemanticError::NotBinOp(value)),
+        })
+    }
+}
+
+impl BinaryOperator {
+    pub fn get_result_ty(&self, operand_ty: TypeKind) -> Result<TypeKind, SemanticError> {
+        Ok(match (self, operand_ty) {
+            (BinaryOperator::Logic(_), TypeKind::Boolean) => TypeKind::Boolean,
+            (BinaryOperator::Bitwise(_), ty @ TypeKind::IntType(_)) => ty,
+            (BinaryOperator::Arithmetic(_), ty @ TypeKind::IntType(_)) => ty,
+            (BinaryOperator::Arithmetic(_), ty @ TypeKind::FloatType(_)) => ty,
+            (BinaryOperator::Comparaison(_), _) => TypeKind::Boolean,
+            _ => return Err(SemanticError::InvalidBinOp),
+        })
     }
 }
 

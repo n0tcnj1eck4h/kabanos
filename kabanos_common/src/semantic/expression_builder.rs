@@ -10,6 +10,7 @@ use super::{
     operator::{BinaryOperator, UnaryOperator},
     symbol::{SymbolTable, VariableID},
     types::{FloatTy, IntBitWidth, IntegerTy, TypeKind},
+    FunctionCall,
 };
 
 #[derive(Debug, Clone)]
@@ -212,7 +213,11 @@ impl ExpressionBuilder<'_> {
             })
             .collect();
 
-        let kind = ExpressionKind::FunctionCall(fn_id, args?);
+        let call = FunctionCall {
+            id: fn_id,
+            args: args?,
+        };
+        let kind = ExpressionKind::FunctionCall(call);
         Ok(InnerExpression { ty, kind })
     }
 
@@ -241,11 +246,10 @@ impl ExpressionBuilder<'_> {
         op: Operator,
         right: Spanned<ast::Expression>,
     ) -> Result<InnerExpression, SemanticError> {
-        let op = op.try_into()?;
         let left_span = left.get_span();
         let right_span = right.get_span();
 
-        let (left, ty, right) = {
+        let (left, operand_ty, right) = {
             if right.is_strongly_typed() {
                 let right = self.build_expression_with_type(right, None)?;
                 let left = self.build_expression_with_type(left, Some(right.ty))?;
@@ -258,53 +262,39 @@ impl ExpressionBuilder<'_> {
             }
         };
 
-        use BinaryOperator::*;
-        let (left, op, right, ty) = match op {
-            Equal | Less | Greater | LessOrEqual | GreaterOrEqual | NotEqual => {
-                let ty = TypeKind::Boolean;
-                (left, op, right, ty)
-            }
+        if op == Operator::Assign {
+            let ExpressionKind::LValue(LValue::LocalVar(variable_id)) = left.kind else {
+                return Err(SemanticError::LValue(left.with_span(left_span)));
+            };
 
-            Add | Subtract | Multiply | Divide | Modulo => {
-                if let TypeKind::IntType(_) | TypeKind::FloatType(_) = ty {
-                    (left, op, right, ty)
-                } else {
-                    return Err(SemanticError::InvalidBinOp);
+            let ty = left.ty;
+            if let Some(expected_ty) = self.expected_ty {
+                if ty != expected_ty {
+                    return Err(SemanticError::TypeMismatch {
+                        expected: expected_ty,
+                        found: ty,
+                    });
                 }
             }
 
-            BitAnd | BitOr | BitXor | BitLeft | BitRight => {
-                if let TypeKind::IntType(_) = ty {
-                    (left, op, right, ty)
-                } else {
-                    return Err(SemanticError::InvalidBinOp);
-                }
-            }
+            let kind = ExpressionKind::Assignment(
+                LValue::LocalVar(variable_id),
+                Box::new(right.with_span(right_span)),
+            );
+            return Ok(InnerExpression { kind, ty });
+        }
 
-            LogicAnd | LogicOr => {
-                if let TypeKind::Boolean = ty {
-                    (left, op, right, ty)
-                } else {
-                    return Err(SemanticError::InvalidBinOp);
-                }
-            }
-
-            Assign => {
-                if let ExpressionKind::LValue(lvalue) = left.kind {
-                    let kind =
-                        ExpressionKind::Assignment(lvalue, Box::new(right.with_span(right_span)));
-                    return Ok(InnerExpression { kind, ty });
-                } else {
-                    return Err(SemanticError::LValue(left.with_span(left_span)));
-                }
-            }
-        };
+        let op: BinaryOperator = op.try_into()?;
+        let result_ty = op.get_result_ty(operand_ty)?;
 
         let kind = ExpressionKind::BinaryOperation(
             Box::new(left.with_span(left_span)),
             op,
             Box::new(right.with_span(right_span)),
         );
-        Ok(InnerExpression { kind, ty })
+        Ok(InnerExpression {
+            kind,
+            ty: result_ty,
+        })
     }
 }

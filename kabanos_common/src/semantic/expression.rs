@@ -4,7 +4,7 @@ use super::{
     operator::{BinaryOperator, UnaryOperator},
     symbol::FunctionID,
     types::TypeKind,
-    VariableID,
+    FunctionCall, VariableID,
 };
 
 #[derive(Debug, Clone)]
@@ -28,7 +28,7 @@ pub enum ExpressionKind {
     FloatLiteral(f64),
     BooleanLiteral(bool),
     UnaryOperation(UnaryOperator, Box<Expression>),
-    FunctionCall(FunctionID, Vec<Expression>),
+    FunctionCall(FunctionCall),
     Assignment(LValue, Box<Expression>),
     BinaryOperation(Box<Expression>, BinaryOperator, Box<Expression>),
     Cast(Box<Expression>, TypeKind),

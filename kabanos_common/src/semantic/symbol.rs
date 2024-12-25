@@ -50,6 +50,10 @@ impl SymbolTable {
         self.function_defs.get(&fn_id)
     }
 
+    pub fn pop_function_body(&mut self, fn_id: FunctionID) -> Option<FunctionDefinition> {
+        self.function_defs.remove(&fn_id)
+    }
+
     pub fn get_function_id_by_decl(
         &self,
         decl: &FunctionDeclaration,

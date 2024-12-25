@@ -1,7 +1,6 @@
-mod error;
-mod expression;
-mod module;
-mod statement;
+pub mod error;
+pub mod module;
+pub mod statement;
 
 use crate::semantic::types::{FloatTy, IntBitWidth, IntegerTy, TypeKind};
 use inkwell::{context::Context, types::BasicTypeEnum};
