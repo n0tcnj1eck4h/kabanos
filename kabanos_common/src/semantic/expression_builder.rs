@@ -268,14 +268,7 @@ impl ExpressionBuilder<'_> {
             };
 
             let ty = left.ty;
-            if let Some(expected_ty) = self.expected_ty {
-                if ty != expected_ty {
-                    return Err(SemanticError::TypeMismatch {
-                        expected: expected_ty,
-                        found: ty,
-                    });
-                }
-            }
+            self.assert_expected_ty(ty)?;
 
             let kind = ExpressionKind::Assignment(
                 LValue::LocalVar(variable_id),
@@ -286,6 +279,7 @@ impl ExpressionBuilder<'_> {
 
         let op: BinaryOperator = op.try_into()?;
         let result_ty = op.get_result_ty(operand_ty)?;
+        self.assert_expected_ty(result_ty)?;
 
         let kind = ExpressionKind::BinaryOperation(
             Box::new(left.with_span(left_span)),
@@ -296,5 +290,17 @@ impl ExpressionBuilder<'_> {
             kind,
             ty: result_ty,
         })
+    }
+
+    fn assert_expected_ty(&self, ty: TypeKind) -> Result<(), SemanticError> {
+        if let Some(expected_ty) = self.expected_ty {
+            if ty != expected_ty {
+                return Err(SemanticError::TypeMismatch {
+                    expected: expected_ty,
+                    found: ty,
+                });
+            }
+        }
+        Ok(())
     }
 }

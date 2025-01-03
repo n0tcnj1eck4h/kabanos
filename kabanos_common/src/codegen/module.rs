@@ -36,6 +36,7 @@ impl ModuleCodegen {
             let fn_dec = symbol_table.get_function(fn_id);
             let function = self.build_function_prototype(&module, fn_dec);
             functions.insert(fn_id, function);
+            println!("declaring {}", fn_dec.name);
         }
 
         // Define functions

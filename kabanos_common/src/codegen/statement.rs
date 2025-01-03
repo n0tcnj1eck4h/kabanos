@@ -191,6 +191,7 @@ where
 
     pub fn build_function_call(&'a self, call: FunctionCall) -> CodegenResult<CallSiteValue<'ctx>> {
         let fn_decl = self.symbol_table.get_function(call.id);
+        dbg!(&fn_decl);
         let fn_value = self.functions.get(&call.id).expect("oops3");
         let mut args = Vec::new();
         for a in call.args {
