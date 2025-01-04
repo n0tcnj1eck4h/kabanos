@@ -21,6 +21,7 @@ pub enum SemanticError {
     SignatureMismatch,
     InvalidBinOp,
     ImplicitType,
+    BadCast,
 }
 
 impl Display for SemanticError {
@@ -59,6 +60,7 @@ impl Display for SemanticError {
             SemanticError::ImplicitType => {
                 write!(f, "Implicit variable types are not supported")
             }
+            SemanticError::BadCast => write!(f, "Bad cast"),
         }
     }
 }

@@ -249,6 +249,19 @@ impl ExpressionBuilder<'_> {
         let left_span = left.get_span();
         let right_span = right.get_span();
 
+        if op == Operator::As {
+            let ast::Expression::Identifier(ident) = right.unwrap() else {
+                return Err(SemanticError::BadCast);
+            };
+
+            let ty: TypeKind = ident.parse()?;
+            self.assert_expected_ty(ty)?;
+
+            let left = self.build_expression_with_type(left, None)?;
+            let kind = ExpressionKind::Cast(Box::new(left.with_span(left_span)), ty);
+            return Ok(InnerExpression { kind, ty });
+        }
+
         let (left, operand_ty, right) = {
             if right.is_strongly_typed() {
                 let right = self.build_expression_with_type(right, None)?;

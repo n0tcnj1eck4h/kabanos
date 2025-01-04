@@ -12,23 +12,22 @@ fn print_ascii() {
 }
 
 fn main(): i32 {
-  print_ascii();
-  fibonacci(10);
-  let g;
-  0 as g;
-  return 0;
+  #print_ascii();
+  #fibonacci(10);
+  print_i32(true as i32);
+  return true as i32;
 }
 
 fn print_i32(i32 n) {
-  #putchar(48 + n / 1000 % 10);
-  #putchar(48 + n / 100  % 10);
-  #putchar(48 + n / 10   % 10);
-  #putchar(48 + n        % 10);
+  putchar(n / 1000 % 10 + 48);
+  putchar(n / 100  % 10 + 48);
+  putchar(n / 10   % 10 + 48);
+  putchar(n        % 10 + 48);
   return;
 }
 
 fn fibonacci(i32 n): i32 {
-  let i = 0;
+  let i: i32 = 0;
   let a: i32 = i;
   let b: i32 = 2;
   

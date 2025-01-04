@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use inkwell::{
     builder::Builder,
     context::Context,
-    types::BasicTypeEnum,
-    values::{BasicValueEnum, CallSiteValue, FloatValue, FunctionValue, IntValue, PointerValue},
+    values::{BasicValueEnum, CallSiteValue, FunctionValue, IntValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
 
@@ -181,17 +180,93 @@ where
                 let call_site = self.build_function_call(call)?;
                 Ok(call_site.try_as_basic_value().unwrap_left())
             }
-            ExpressionKind::Cast(expression, type_kind) => match expression.ty {
-                TypeKind::IntType(integer_ty) => todo!(),
-                TypeKind::FloatType(float_ty) => todo!(),
-                TypeKind::Boolean => todo!(),
-            },
+            ExpressionKind::Cast(expression, to) => {
+                let from = expression.ty;
+                let value = self.build_expression(*expression)?;
+                let ty = to.to_llvm_type(&self.context);
+
+                use TypeKind::*;
+                Ok(match (from, to) {
+                    (IntType(from), IntType(to)) => {
+                        let value = value.into_int_value();
+                        let ty = ty.into_int_type();
+                        match (from.bits < to.bits, to.sign) {
+                            (true, true) => self.builder.build_int_s_extend(value, ty, "sext")?,
+                            (true, false) => self.builder.build_int_z_extend(value, ty, "zext")?,
+                            (false, _) => self.builder.build_int_truncate(value, ty, "trunc")?,
+                        }
+                        .into()
+                    }
+                    (IntType(from), FloatType(_)) => {
+                        let value = value.into_int_value();
+                        let ty = ty.into_float_type();
+                        if from.sign {
+                            self.builder
+                                .build_signed_int_to_float(value, ty, "sitofp")?
+                        } else {
+                            self.builder
+                                .build_unsigned_int_to_float(value, ty, "uitofp")?
+                        }
+                        .into()
+                    }
+                    (IntType(_), Boolean) => {
+                        let from = from.to_llvm_type(&self.context).into_int_type();
+                        let value = value.into_int_value();
+                        let zero = from.const_int(0, false);
+                        self.builder
+                            .build_int_compare(IntPredicate::NE, value, zero, "int_to_bool")?
+                            .into()
+                    }
+                    (FloatType(_), IntType(to)) => {
+                        let value = value.into_float_value();
+                        let ty = ty.into_int_type();
+                        if to.sign {
+                            self.builder
+                                .build_float_to_signed_int(value, ty, "fptosi")?
+                        } else {
+                            self.builder
+                                .build_float_to_unsigned_int(value, ty, "fptoui")?
+                        }
+                        .into()
+                    }
+                    (FloatType(from), FloatType(to)) => {
+                        let value = value.into_float_value();
+                        let ty = ty.into_float_type();
+                        if from < to {
+                            self.builder.build_float_ext(value, ty, "fext")?
+                        } else {
+                            self.builder.build_float_trunc(value, ty, "ftruc")?
+                        }
+                        .into()
+                    }
+                    (FloatType(_), Boolean) => {
+                        let from = from.to_llvm_type(&self.context).into_float_type();
+                        let value = value.into_float_value();
+                        let zero = from.const_float(0.0);
+                        self.builder
+                            .build_float_compare(FloatPredicate::UNE, value, zero, "float_to_bool")?
+                            .into()
+                    }
+                    (Boolean, IntType(_)) => {
+                        let value = value.into_int_value();
+                        let ty = ty.into_int_type();
+                        self.builder.build_int_z_extend(value, ty, "zext")?.into()
+                    }
+                    (Boolean, FloatType(_)) => {
+                        let value = value.into_int_value();
+                        let ty = ty.into_float_type();
+                        self.builder
+                            .build_unsigned_int_to_float(value, ty, "uitofp")?
+                            .into()
+                    }
+                    (Boolean, Boolean) => value,
+                })
+            }
         }
     }
 
     pub fn build_function_call(&'a self, call: FunctionCall) -> CodegenResult<CallSiteValue<'ctx>> {
         let fn_decl = self.symbol_table.get_function(call.id);
-        dbg!(&fn_decl);
         let fn_value = self.functions.get(&call.id).expect("oops3");
         let mut args = Vec::new();
         for a in call.args {

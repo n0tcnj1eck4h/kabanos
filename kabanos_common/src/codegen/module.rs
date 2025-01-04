@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use inkwell::{
-    context::{self, Context},
+    context::Context,
     module::Module,
     types::BasicType,
     values::{FunctionValue, PointerValue},
