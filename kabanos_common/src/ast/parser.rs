@@ -18,8 +18,6 @@ pub struct Parser<L> {
     next_token: Option<Spanned<Token>>,
 }
 
-// pub type Result<T> = std::result::Result<T, ParsingError>;
-
 impl<L> Parser<L>
 where
     L: Iterator<Item = Spanned<Token>>,

@@ -189,7 +189,7 @@ where
                     .into(),
                 })
             }
-            ExpressionKind::UnaryOperation(_op, expr) => {
+            ExpressionKind::UnaryOperation(_op, _expr) => {
                 // TODO
                 //Ok(expr.build_expression(context, builder, symbol_table)?)
                 todo!()

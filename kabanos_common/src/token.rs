@@ -10,7 +10,6 @@ pub enum Token {
     Operator(Operator),
     Keyword(Keyword),
     Atom(char),
-    None,
 }
 
 impl std::fmt::Display for Token {
@@ -24,14 +23,13 @@ impl std::fmt::Display for Token {
             Token::Operator(op) => write!(f, "operator {:?}", op),
             Token::Keyword(keyword) => write!(f, "keyword {:?}", keyword),
             Token::Atom(atom) => write!(f, "'{}'", atom),
-            Token::None => write!(f, "None"),
         }
     }
 }
 
 impl Default for Token {
     fn default() -> Self {
-        Self::None
+        Self::Atom(' ')
     }
 }
 

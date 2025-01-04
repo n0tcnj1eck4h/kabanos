@@ -44,6 +44,18 @@ fn fibonacci(i32 n): i32 {
   return b;
 }
 
+fn operators() {
+  let a: bool;
+  let b: bool;
+  a && b;
+  a || b;
+  
+  let a: i32;
+  let b: i32;
+  a & b;
+  a | b;
+}
+
 
 # Imports
 # import module_name::symbol;

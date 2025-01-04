@@ -1,13 +1,12 @@
 use std::str::FromStr;
 
 use crate::{
-    span::{Position, Span, Spanned, WithSpan},
+    span::{Span, Spanned, WithSpan},
     token::{Keyword, Operator, Token},
 };
 
 pub struct Lexer<T> {
     stream: T,
-    pos: Position,
     span: Span,
     ch: Option<char>,
 }
@@ -18,39 +17,25 @@ where
 {
     pub fn new(mut stream: T) -> Self {
         let ch = stream.next();
-        let pos = Position { col: 0, row: 0 };
         let span = Span::default();
-        Lexer {
-            stream,
-            ch,
-            pos,
-            span,
-        }
+        Lexer { stream, ch, span }
     }
 
     fn token(&mut self, kind: Token) -> Option<Spanned<Token>> {
         let span = self.span;
-        self.span.start = self.pos;
+        self.span.start = self.span.end;
         Some(kind.with_span(span))
     }
 
     fn advance(&mut self) -> bool {
         self.ch = self.stream.next();
-        self.span.end = self.pos;
         if let Some('\n') = self.ch {
-            self.pos.col = 0;
-            self.pos.row += 1;
+            self.span.end.col = 0;
+            self.span.end.row += 1;
         } else {
-            self.pos.col += 1;
+            self.span.end.col += 1;
         }
         self.ch.is_some()
-    }
-
-    fn check<F>(&mut self, f: F) -> bool
-    where
-        F: FnOnce(char) -> bool,
-    {
-        self.ch.map_or(false, f)
     }
 }
 
@@ -61,27 +46,25 @@ where
     type Item = Spanned<Token>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.check(char::is_whitespace) {
+        while self.ch.map_or(false, char::is_whitespace) {
             self.advance();
         }
 
-        let ch = match self.ch {
-            Some(character) => character,
-            None => return None,
+        let Some(ch) = self.ch else {
+            return None;
         };
 
-        // Skip comments
         if ch == '#' {
+            self.advance();
             while let Some(ch) = self.ch {
                 self.advance();
                 if ch == '\n' {
-                    break;
+                    return self.next();
                 }
             }
-            return self.next();
         }
 
-        if ch.is_alphabetic() {
+        if ch.is_alphabetic() || ch == '_' {
             let mut buf = String::new();
             while let Some(ch) = self.ch {
                 if ch.is_alphanumeric() || ch == '_' {
@@ -121,7 +104,8 @@ where
                             denominator *= 10.0;
                             decimals += d as f64 / denominator;
                         } else {
-                            return self.token(Token::FloatingPointLiteral(n as f64 + decimals));
+                            let f = n as f64 + decimals;
+                            return self.token(Token::FloatingPointLiteral(f));
                         }
                     }
                 } else {
