@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use inkwell::{
     builder::Builder,
     context::Context,
-    values::{BasicValueEnum, CallSiteValue, FunctionValue, IntValue, PointerValue},
+    values::{BasicValueEnum, CallSiteValue, FloatValue, FunctionValue, IntValue, PointerValue},
     FloatPredicate, IntPredicate,
 };
 
@@ -154,6 +154,7 @@ where
                 .into()),
             ExpressionKind::BinaryOperation(lexpr, op, rexpr) => {
                 assert_eq!(lexpr.ty, rexpr.ty);
+                let ty = lexpr.ty;
                 let l = self.build_expression(*lexpr)?;
                 let r = self.build_expression(*rexpr)?;
                 Ok(match op {
@@ -166,9 +167,26 @@ where
                     BinaryOperator::Arithmetic(arithmetic_op) => {
                         self.build_arithmetic_binop(arithmetic_op, l, r)?.into()
                     }
-                    BinaryOperator::Comparaison(comparaison_op) => {
-                        self.build_comparaison_binop(comparaison_op, l, r)?.into()
+                    BinaryOperator::Comparaison(op) => match ty {
+                        TypeKind::IntType(ty) => self.build_int_cmp_binop(
+                            op,
+                            l.into_int_value(),
+                            r.into_int_value(),
+                            ty.sign,
+                        )?,
+                        TypeKind::FloatType(_) => self.build_float_cmp_binop(
+                            op,
+                            l.into_float_value(),
+                            r.into_float_value(),
+                        )?,
+                        TypeKind::Boolean => self.build_int_cmp_binop(
+                            op,
+                            l.into_int_value(),
+                            r.into_int_value(),
+                            false,
+                        )?,
                     }
+                    .into(),
                 })
             }
             ExpressionKind::UnaryOperation(_op, expr) => {
@@ -307,39 +325,49 @@ where
         }
     }
 
-    pub fn build_comparaison_binop(
+    pub fn build_int_cmp_binop(
         &'a self,
         op: ComparaisonOp,
-        l: BasicValueEnum<'ctx>,
-        r: BasicValueEnum<'ctx>,
+        l: IntValue<'ctx>,
+        r: IntValue<'ctx>,
+        signed: bool,
+    ) -> CodegenResult<BasicValueEnum<'ctx>> {
+        use ComparaisonOp::*;
+        use IntPredicate::*;
+        let b = &self.builder;
+        Ok(match (op, signed) {
+            (Equal, _) => b.build_int_compare(EQ, l, r, "eq")?,
+            (NotEqual, _) => b.build_int_compare(NE, l, r, "neq")?,
+            (Less, true) => b.build_int_compare(SLT, l, r, "slt")?,
+            (Less, false) => b.build_int_compare(ULT, l, r, "slt")?,
+            (Greater, true) => b.build_int_compare(SGT, l, r, "gt")?,
+            (Greater, false) => b.build_int_compare(UGT, l, r, "gt")?,
+            (LessOrEqual, true) => b.build_int_compare(SLE, l, r, "le")?,
+            (LessOrEqual, false) => b.build_int_compare(ULE, l, r, "le")?,
+            (GreaterOrEqual, true) => b.build_int_compare(SGE, l, r, "ge")?,
+            (GreaterOrEqual, false) => b.build_int_compare(UGE, l, r, "ge")?,
+        }
+        .into())
+    }
+
+    pub fn build_float_cmp_binop(
+        &'a self,
+        op: ComparaisonOp,
+        l: FloatValue<'ctx>,
+        r: FloatValue<'ctx>,
     ) -> CodegenResult<BasicValueEnum<'ctx>> {
         use ComparaisonOp::*;
         use FloatPredicate::*;
-        use IntPredicate::*;
-        let builder = &self.builder;
-        match (l, r) {
-            (BasicValueEnum::IntValue(l), BasicValueEnum::IntValue(r)) => Ok(match op {
-                Equal => builder.build_int_compare(EQ, l, r, "eq")?.into(),
-                NotEqual => builder.build_int_compare(NE, l, r, "neq")?.into(),
-                Greater => builder.build_int_compare(SGT, l, r, "gt")?.into(),
-                Less => builder.build_int_compare(SLT, l, r, "slt")?.into(),
-                GreaterOrEqual => builder.build_int_compare(SGE, l, r, "ge")?.into(),
-                LessOrEqual => builder.build_int_compare(SLE, l, r, "le")?.into(),
-            }),
-            (BasicValueEnum::FloatValue(l), BasicValueEnum::FloatValue(r)) => Ok(match op {
-                Equal => builder.build_float_compare(OEQ, l, r, "feq")?.into(),
-                NotEqual => builder.build_float_compare(ONE, l, r, "fnq")?.into(),
-                Greater => builder.build_float_compare(OGT, l, r, "fgt")?.into(),
-                Less => builder.build_float_compare(OLT, l, r, "flt")?.into(),
-                GreaterOrEqual => builder.build_float_compare(OGE, l, r, "fge")?.into(),
-                LessOrEqual => builder.build_float_compare(OLE, l, r, "fle")?.into(),
-            }),
-            _ => panic!(
-                "can't perform comparaison on operands of types {:?} and {:?}",
-                l.get_type(),
-                r.get_type()
-            ),
+        let b = &self.builder;
+        Ok(match op {
+            Equal => b.build_float_compare(OEQ, l, r, "feq")?,
+            NotEqual => b.build_float_compare(ONE, l, r, "fnq")?,
+            Greater => b.build_float_compare(OGT, l, r, "fgt")?,
+            Less => b.build_float_compare(OLT, l, r, "flt")?,
+            GreaterOrEqual => b.build_float_compare(OGE, l, r, "fge")?,
+            LessOrEqual => b.build_float_compare(OLE, l, r, "fle")?,
         }
+        .into())
     }
 
     pub fn build_bitwise_binop(
@@ -365,11 +393,9 @@ where
         l: IntValue<'ctx>,
         r: IntValue<'ctx>,
     ) -> CodegenResult<IntValue<'ctx>> {
-        use LogicOp::*;
-        let builder = &self.builder;
         Ok(match op {
-            LogicAnd => builder.build_and(l, r, "and")?,
-            LogicOr => builder.build_or(l, r, "or")?,
+            LogicOp::LogicAnd => self.builder.build_and(l, r, "and")?,
+            LogicOp::LogicOr => self.builder.build_or(l, r, "or")?,
         })
     }
 }
