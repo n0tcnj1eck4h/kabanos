@@ -3,7 +3,6 @@ pub mod expression;
 pub mod expression_builder;
 pub mod module_builder;
 pub mod operator;
-pub mod primitive;
 pub mod statement_builder;
 pub mod symbol;
 pub mod types;

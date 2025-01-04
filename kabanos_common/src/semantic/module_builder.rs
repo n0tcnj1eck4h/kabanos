@@ -1,8 +1,6 @@
-use std::str::FromStr;
-
 use super::{
-    error::SemanticError, primitive::Primitive, statement_builder::StatementBuilder,
-    symbol::Variable, FunctionDeclaration, FunctionDefinition, FunctionParam, Module,
+    error::SemanticError, statement_builder::StatementBuilder, symbol::Variable, types::TypeKind,
+    FunctionDeclaration, FunctionDefinition, FunctionParam, Module,
 };
 use crate::{
     ast,
@@ -92,19 +90,18 @@ impl Module {
         prototype: ast::FunctionPrototype,
     ) -> Result<FunctionDeclaration, Spanned<SemanticError>> {
         let name = prototype.name;
-        let ty = prototype
+        let ty: Option<TypeKind> = prototype
             .return_type
-            .map(|ty| Primitive::from_str(&ty))
+            .map(|ty| ty.parse())
             .transpose()
-            .map_err(|e| e.with_span(prototype.span))?
-            .map(Into::into);
+            .map_err(|e: SemanticError| e.with_span(prototype.span))?;
 
         let mut params = Vec::new();
         for p in prototype.parameters {
             let identifier = p.name;
-            let ty = Primitive::from_str(&p.ty)
-                .map_err(|e| e.with_span(p.span))?
-                .into();
+            let ty: TypeKind =
+                p.ty.parse()
+                    .map_err(|e: SemanticError| e.with_span(p.span))?;
             let param = FunctionParam { identifier, ty };
             params.push(param);
         }

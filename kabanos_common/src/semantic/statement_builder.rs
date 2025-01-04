@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use crate::{
     ast,
     span::{HasSpan, Span, Spanned, WithSpan as _},
@@ -9,7 +7,6 @@ use super::{
     error::SemanticError,
     expression::{Expression, ExpressionKind, LValue},
     expression_builder::ExpressionBuilder,
-    primitive::Primitive,
     symbol::{SymbolTable, Variable, VariableID},
     types::TypeKind,
     FunctionCall, Scope, Statement,
@@ -108,9 +105,9 @@ impl StatementBuilder<'_> {
                 ast::Statement::LocalVar(identifier, ty, expr) => {
                     let ty_str =
                         ty.ok_or_else(|| SemanticError::ImplicitType.with_span(Span::default()))?;
-                    let ty: TypeKind = Primitive::from_str(&ty_str)
-                        .map_err(|e| e.with_span(Span::default()))?
-                        .into();
+                    let ty: TypeKind = ty_str
+                        .parse()
+                        .map_err(|e: SemanticError| e.with_span(Span::default()))?;
 
                     let identifier = identifier.unwrap();
                     let symbol = Variable { identifier, ty };

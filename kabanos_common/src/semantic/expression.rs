@@ -2,7 +2,6 @@ use crate::span::Span;
 
 use super::{
     operator::{BinaryOperator, UnaryOperator},
-    symbol::FunctionID,
     types::TypeKind,
     FunctionCall, VariableID,
 };

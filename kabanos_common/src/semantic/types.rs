@@ -1,6 +1,9 @@
-use std::fmt::{Debug, Display};
+use std::{
+    fmt::{Debug, Display},
+    str::FromStr,
+};
 
-use super::primitive::Primitive;
+use super::error::SemanticError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IntBitWidth {
@@ -29,28 +32,6 @@ pub enum TypeKind {
     Boolean,
 }
 
-impl From<Primitive> for TypeKind {
-    #[rustfmt::skip]
-    fn from(value: Primitive) -> Self {
-        use IntBitWidth::*;
-        use TypeKind::IntType;
-
-        match value {
-            Primitive::Bool => TypeKind::Boolean,
-            Primitive::F32 => TypeKind::FloatType(FloatTy::F32),
-            Primitive::F64 => TypeKind::FloatType(FloatTy::F64),
-            Primitive::I8  => IntType(IntegerTy { bits: I8,  sign: true,  }),
-            Primitive::U8  => IntType(IntegerTy { bits: I8,  sign: false, }),
-            Primitive::I16 => IntType(IntegerTy { bits: I16, sign: true,  }),
-            Primitive::U16 => IntType(IntegerTy { bits: I16, sign: false, }),
-            Primitive::I32 => IntType(IntegerTy { bits: I32, sign: true,  }),
-            Primitive::U32 => IntType(IntegerTy { bits: I32, sign: false, }),
-            Primitive::I64 => IntType(IntegerTy { bits: I64, sign: true,  }),
-            Primitive::U64 => IntType(IntegerTy { bits: I64, sign: false, }),
-        }
-    }
-}
-
 impl TypeKind {
     #[rustfmt::skip]
     pub fn as_str(&self) -> &'static str {
@@ -68,6 +49,28 @@ impl TypeKind {
             TypeKind::IntType(IntegerTy { bits: I64, sign: true  }) => "i64",
             TypeKind::IntType(IntegerTy { bits: I64, sign: false }) => "u64",
         }
+    }
+}
+
+impl FromStr for TypeKind {
+    type Err = SemanticError;
+    #[rustfmt::skip]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use IntBitWidth::*;
+        Ok(match s {
+            "bool" => TypeKind::Boolean,                                  
+            "f32"  => TypeKind::FloatType(FloatTy::F32),                  
+            "f64"  => TypeKind::FloatType(FloatTy::F64),                  
+            "i8"   => TypeKind::IntType(IntegerTy { bits: I8,  sign: true,  }),     
+            "u8"   => TypeKind::IntType(IntegerTy { bits: I8,  sign: false, }),     
+            "i16"  => TypeKind::IntType(IntegerTy { bits: I16, sign: true,  }),     
+            "u16"  => TypeKind::IntType(IntegerTy { bits: I16, sign: false, }),     
+            "i32"  => TypeKind::IntType(IntegerTy { bits: I32, sign: true,  }),     
+            "u32"  => TypeKind::IntType(IntegerTy { bits: I32, sign: false, }),     
+            "i64"  => TypeKind::IntType(IntegerTy { bits: I64, sign: true,  }),     
+            "u64"  => TypeKind::IntType(IntegerTy { bits: I64, sign: false, }),     
+            _ => return Err(SemanticError::NotPrimitive(s.to_string())),
+        })
     }
 }
 
