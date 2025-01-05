@@ -15,13 +15,15 @@ pub struct ModuleCodegen {
     pub context: Context,
 }
 
-impl ModuleCodegen {
-    pub fn new() -> Self {
+impl Default for ModuleCodegen {
+    fn default() -> Self {
         Self {
             context: Context::create(),
         }
     }
+}
 
+impl ModuleCodegen {
     pub fn build_module<'ctx>(
         &'ctx self,
         semantic_module: semantic::Module,
@@ -36,7 +38,6 @@ impl ModuleCodegen {
             let fn_dec = symbol_table.get_function(fn_id);
             let function = self.build_function_prototype(&module, fn_dec);
             functions.insert(fn_id, function);
-            println!("declaring {}", fn_dec.name);
         }
 
         // Define functions

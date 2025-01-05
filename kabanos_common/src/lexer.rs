@@ -50,9 +50,7 @@ where
             self.advance();
         }
 
-        let Some(ch) = self.ch else {
-            return None;
-        };
+        let ch = self.ch?;
 
         if ch == '#' {
             self.advance();
@@ -124,6 +122,7 @@ where
                     ('"', false) => break,
                     ('\\', false) => {
                         escaped = true;
+                        self.advance();
                         continue;
                     }
                     ('\\', true) => buf.push('\\'),
@@ -131,13 +130,13 @@ where
                     ('"', true) => buf.push('"'),
                     (_, false) => buf.push(ch),
                     (_, true) => {
-                        buf.push('\\');
-                        buf.push(ch);
+                        buf.extend(['\\', ch]);
                     }
                 }
                 escaped = false;
                 self.advance();
             }
+            self.advance();
             return self.token(Token::StringLiteral(buf));
         }
 

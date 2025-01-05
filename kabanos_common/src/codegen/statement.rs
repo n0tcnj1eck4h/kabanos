@@ -128,12 +128,12 @@ where
                 let symbol = self.symbol_table.get_variable(variable_id);
                 let ty = ptr.get_type();
                 self.builder.build_store(*ptr, r)?;
-                return Ok(self.builder.build_load(ty, *ptr, &symbol.identifier)?);
+                Ok(self.builder.build_load(ty, *ptr, &symbol.identifier)?)
             }
             ExpressionKind::LValue(LValue::LocalVar(variable_id)) => {
                 let variabel = self.variables.get(&variable_id).expect("oops2");
                 let symbol = self.symbol_table.get_variable(variable_id);
-                let ty = symbol.ty.to_llvm_type(&self.context);
+                let ty = symbol.ty.to_llvm_type(self.context);
                 Ok(self.builder.build_load(ty, *variabel, &symbol.identifier)?)
             }
             ExpressionKind::BooleanLiteral(b) => {
@@ -142,13 +142,13 @@ where
             }
             ExpressionKind::IntegerLiteral(int) => Ok(expr
                 .ty
-                .to_llvm_type(&self.context)
+                .to_llvm_type(self.context)
                 .into_int_type()
-                .const_int(int as u64, false)
+                .const_int(int, false)
                 .into()),
             ExpressionKind::FloatLiteral(f) => Ok(expr
                 .ty
-                .to_llvm_type(&self.context)
+                .to_llvm_type(self.context)
                 .into_float_type()
                 .const_float(f)
                 .into()),
@@ -165,7 +165,7 @@ where
                         .build_bitwise_binop(bitwise_op, l.into_int_value(), r.into_int_value())?
                         .into(),
                     BinaryOperator::Arithmetic(arithmetic_op) => {
-                        self.build_arithmetic_binop(arithmetic_op, l, r)?.into()
+                        self.build_arithmetic_binop(arithmetic_op, l, r)?
                     }
                     BinaryOperator::Comparaison(op) => match ty {
                         TypeKind::IntType(ty) => self.build_int_cmp_binop(
@@ -185,8 +185,7 @@ where
                             r.into_int_value(),
                             false,
                         )?,
-                    }
-                    .into(),
+                    },
                 })
             }
             ExpressionKind::UnaryOperation(_op, _expr) => {
@@ -201,7 +200,7 @@ where
             ExpressionKind::Cast(expression, to) => {
                 let from = expression.ty;
                 let value = self.build_expression(*expression)?;
-                let ty = to.to_llvm_type(&self.context);
+                let ty = to.to_llvm_type(self.context);
 
                 use TypeKind::*;
                 Ok(match (from, to) {
@@ -228,7 +227,7 @@ where
                         .into()
                     }
                     (IntType(_), Boolean) => {
-                        let from = from.to_llvm_type(&self.context).into_int_type();
+                        let from = from.to_llvm_type(self.context).into_int_type();
                         let value = value.into_int_value();
                         let zero = from.const_int(0, false);
                         self.builder
@@ -258,7 +257,7 @@ where
                         .into()
                     }
                     (FloatType(_), Boolean) => {
-                        let from = from.to_llvm_type(&self.context).into_float_type();
+                        let from = from.to_llvm_type(self.context).into_float_type();
                         let value = value.into_float_value();
                         let zero = from.const_float(0.0);
                         self.builder

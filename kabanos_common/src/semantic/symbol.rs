@@ -43,7 +43,7 @@ impl SymbolTable {
     }
 
     pub fn iterate_functions(&self) -> impl Iterator<Item = FunctionID> {
-        (0..self.function_decls.len()).map(|i| FunctionID(i))
+        (0..self.function_decls.len()).map(FunctionID)
     }
 
     pub fn get_function_body(&self, fn_id: FunctionID) -> Option<&FunctionDefinition> {

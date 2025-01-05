@@ -20,7 +20,7 @@ fn main() {
         Err(err) => return println!("Semantic error: {:?}", err),
     };
 
-    let codegen = ModuleCodegen::new();
+    let codegen = ModuleCodegen::default();
     let llvm_module = match codegen.build_module(semantic_module, "main") {
         Ok(llvm_module) => llvm_module,
         Err(err) => return println!("Codegen error: {}", err),

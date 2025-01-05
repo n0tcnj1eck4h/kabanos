@@ -94,7 +94,7 @@ impl<T: Default> Default for Spanned<T> {
 impl<T: Clone> Clone for Spanned<T> {
     fn clone(&self) -> Self {
         Self {
-            span: self.span.clone(),
+            span: self.span,
             inner: self.inner.clone(),
         }
     }
