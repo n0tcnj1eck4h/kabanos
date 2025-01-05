@@ -9,6 +9,7 @@ pub enum Token {
     BooleanLiteral(bool),
     Operator(Operator),
     Keyword(Keyword),
+    Char(char),
     Atom(char),
 }
 
@@ -22,7 +23,8 @@ impl std::fmt::Display for Token {
             Token::BooleanLiteral(value) => write!(f, "bool {}", value),
             Token::Operator(op) => write!(f, "operator {:?}", op),
             Token::Keyword(keyword) => write!(f, "keyword {:?}", keyword),
-            Token::Atom(atom) => write!(f, "'{}'", atom),
+            Token::Atom(atom) => write!(f, "`{}`", atom),
+            Token::Char(ch) => write!(f, "'{}'", ch),
         }
     }
 }

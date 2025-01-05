@@ -25,6 +25,12 @@ pub enum FloatTy {
     F64 = 64,
 }
 
+// #[derive(Clone, Copy, PartialEq, Eq)]
+// pub struct Type {
+//     pointer_depth: u32,
+//     kind: TypeKind,
+// }
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TypeKind {
     IntType(IntegerTy),

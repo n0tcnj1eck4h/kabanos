@@ -8,7 +8,13 @@ fn main() {
     let contents = std::fs::read_to_string(filename).expect("Failed to read file");
 
     let lexer = Lexer::new(contents.chars());
-    let mut parser = Parser::new(lexer).expect("Stream is empty");
+    let tokens: Result<Vec<_>, _> = lexer.collect();
+    let tokens = match tokens {
+        Ok(tokens) => tokens,
+        Err(err) => return println!("Lexing error: {:?}", err),
+    };
+
+    let mut parser = Parser::new(tokens.into_iter()).expect("Stream is empty");
 
     let ast = match parser.module() {
         Ok(ast) => ast,

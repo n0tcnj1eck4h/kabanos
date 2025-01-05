@@ -92,7 +92,8 @@ impl KabanosLSPBackend {
         let text = self.code.lock().await;
 
         let lexer = Lexer::new(text.chars());
-        let parser = Parser::new(lexer);
+        let tokens = lexer.filter_map(|f| f.ok());
+        let parser = Parser::new(tokens);
         let Some(mut parser) = parser else {
             return;
         };

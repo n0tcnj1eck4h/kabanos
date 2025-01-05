@@ -338,6 +338,11 @@ where
     fn primary(&mut self) -> Result<Spanned<Expression>, ParsingError> {
         let span = self.token.get_span();
         match *self.token {
+            Token::Char(ch) => {
+                self.advance()?;
+                let kind = Expression::IntegerLiteral(ch.into());
+                Ok(kind.with_span(span))
+            }
             Token::IntegerLiteral(integer) => {
                 self.advance()?;
                 let kind = Expression::IntegerLiteral(integer);

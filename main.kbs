@@ -12,6 +12,7 @@ fn print_ascii() {
 }
 
 fn main(): i32 {
+  putchar('\n');
   #print_ascii();
   #fibonacci(10);
   print_i32(1);
@@ -42,18 +43,6 @@ fn fibonacci(i32 n): i32 {
   }
   
   return b;
-}
-
-fn operators() {
-  let a: bool;
-  let b: bool;
-  a && b;
-  a || b;
-  
-  let a: i32;
-  let b: i32;
-  a & b;
-  a | b;
 }
 
 

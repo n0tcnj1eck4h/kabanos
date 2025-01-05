@@ -5,6 +5,13 @@ use crate::{
     token::{Keyword, Operator, Token},
 };
 
+#[derive(Debug)]
+pub enum LexerError {
+    UnexpectedEOF,
+    CharTooLong,
+    BadEscape,
+}
+
 pub struct Lexer<T> {
     stream: T,
     span: Span,
@@ -21,10 +28,10 @@ where
         Lexer { stream, ch, span }
     }
 
-    fn token(&mut self, kind: Token) -> Option<Spanned<Token>> {
+    fn token(&mut self, kind: Token) -> Option<Result<Spanned<Token>, LexerError>> {
         let span = self.span;
         self.span.start = self.span.end;
-        Some(kind.with_span(span))
+        Some(Ok(kind.with_span(span)))
     }
 
     fn advance(&mut self) -> bool {
@@ -37,13 +44,32 @@ where
         }
         self.ch.is_some()
     }
+
+    fn read_char(&mut self) -> Result<char, LexerError> {
+        let mut ch = self.ch.ok_or(LexerError::UnexpectedEOF)?;
+
+        if ch == '\\' {
+            self.advance();
+            ch = match self.ch.ok_or(LexerError::UnexpectedEOF)? {
+                '\\' => '\\',
+                'n' => '\n',
+                't' => '\t',
+                'r' => '\r',
+                '"' => '"',
+                _ => return Err(LexerError::BadEscape),
+            }
+        }
+
+        self.advance();
+        return Ok(ch);
+    }
 }
 
 impl<T> Iterator for Lexer<T>
 where
     T: Iterator<Item = char>,
 {
-    type Item = Spanned<Token>;
+    type Item = Result<Spanned<Token>, LexerError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self.ch.map_or(false, char::is_whitespace) {
@@ -116,28 +142,29 @@ where
         if ch == '"' {
             self.advance();
             let mut buf = String::new();
-            let mut escaped = false;
-            while let Some(ch) = self.ch {
-                match (ch, escaped) {
-                    ('"', false) => break,
-                    ('\\', false) => {
-                        escaped = true;
-                        self.advance();
-                        continue;
-                    }
-                    ('\\', true) => buf.push('\\'),
-                    ('n', true) => buf.push('\n'),
-                    ('"', true) => buf.push('"'),
-                    (_, false) => buf.push(ch),
-                    (_, true) => {
-                        buf.extend(['\\', ch]);
-                    }
-                }
-                escaped = false;
-                self.advance();
+            while self.ch != Some('"') {
+                match self.read_char() {
+                    Ok(ch) => buf.push(ch),
+                    Err(err) => return Some(Err(err)),
+                };
             }
             self.advance();
             return self.token(Token::StringLiteral(buf));
+        }
+
+        if ch == '\'' {
+            self.advance();
+            let ch = match self.read_char() {
+                Ok(ch) => ch,
+                Err(err) => return Some(Err(err)),
+            };
+
+            if self.ch != Some('\'') {
+                return Some(Err(LexerError::CharTooLong));
+            }
+
+            self.advance();
+            return self.token(Token::Char(ch));
         }
 
         self.advance();
