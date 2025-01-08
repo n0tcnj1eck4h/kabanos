@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::token::Operator;
 
-use super::{expression::Expression, operator::UnaryOperator, types::TypeKind};
+use super::{expression::Expression, operator::UnaryOperator, types::Type};
 
 #[derive(Debug)]
 pub enum SemanticError {
@@ -12,11 +12,11 @@ pub enum SemanticError {
     NotPrimitive(String),
     LValue(Expression),
     VoidOperation,
-    InvalidUnaryOp(UnaryOperator, TypeKind),
+    InvalidUnaryOp(UnaryOperator, Type),
     Undeclared(String),
     WrongArgumentCount,
-    ReturnTypeMismatch { expected: Option<TypeKind> },
-    TypeMismatch { expected: TypeKind, found: TypeKind },
+    ReturnTypeMismatch { expected: Option<Type> },
+    TypeMismatch { expected: Type, found: Type },
     FunctionRedefiniton,
     SignatureMismatch,
     InvalidBinOp,

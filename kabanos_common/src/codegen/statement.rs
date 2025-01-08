@@ -9,10 +9,10 @@ use inkwell::{
 
 use crate::semantic::{
     self,
-    expression::{Expression, ExpressionKind, LValue},
+    expression::{Expression, LValue},
     operator::{ArithmeticOp, BinaryOperator, BitwiseOp, ComparaisonOp, LogicOp},
     symbol::{FunctionID, SymbolTable, VariableID},
-    types::TypeKind,
+    types::Type,
     FunctionCall, Scope,
 };
 
@@ -121,8 +121,8 @@ where
     }
 
     pub fn build_expression(&self, expr: Expression) -> CodegenResult<BasicValueEnum<'_>> {
-        match expr.kind {
-            ExpressionKind::Assignment(LValue::LocalVar(variable_id), expr) => {
+        match expr {
+            Expression::Assignment(LValue::LocalVar(variable_id), expr) => {
                 let r = self.build_expression(*expr)?;
                 let ptr = self.variables.get(&variable_id).expect("oops");
                 let symbol = self.symbol_table.get_variable(variable_id);
@@ -130,31 +130,27 @@ where
                 self.builder.build_store(*ptr, r)?;
                 Ok(self.builder.build_load(ty, *ptr, &symbol.identifier)?)
             }
-            ExpressionKind::LValue(LValue::LocalVar(variable_id)) => {
+            Expression::LValue(LValue::LocalVar(variable_id)) => {
                 let variabel = self.variables.get(&variable_id).expect("oops2");
                 let symbol = self.symbol_table.get_variable(variable_id);
                 let ty = symbol.ty.to_llvm_type(self.context);
                 Ok(self.builder.build_load(ty, *variabel, &symbol.identifier)?)
             }
-            ExpressionKind::BooleanLiteral(b) => {
-                assert_eq!(expr.ty, TypeKind::Boolean);
+            Expression::BooleanLiteral(b) => {
                 Ok(self.context.bool_type().const_int(b as u64, false).into())
             }
-            ExpressionKind::IntegerLiteral(int) => Ok(expr
-                .ty
+            Expression::IntegerLiteral(int, ty) => Ok(Type::Int(ty)
                 .to_llvm_type(self.context)
                 .into_int_type()
                 .const_int(int, false)
                 .into()),
-            ExpressionKind::FloatLiteral(f) => Ok(expr
-                .ty
+            Expression::FloatLiteral(f, ty) => Ok(Type::Float(ty)
                 .to_llvm_type(self.context)
                 .into_float_type()
                 .const_float(f)
                 .into()),
-            ExpressionKind::BinaryOperation(lexpr, op, rexpr) => {
-                assert_eq!(lexpr.ty, rexpr.ty);
-                let ty = lexpr.ty;
+            Expression::BinaryOperation(lexpr, op, rexpr) => {
+                let ty = self.symbol_table.get_expression_type(&lexpr);
                 let l = self.build_expression(*lexpr)?;
                 let r = self.build_expression(*rexpr)?;
                 Ok(match op {
@@ -168,43 +164,48 @@ where
                         self.build_arithmetic_binop(arithmetic_op, l, r)?
                     }
                     BinaryOperator::Comparaison(op) => match ty {
-                        TypeKind::IntType(ty) => self.build_int_cmp_binop(
+                        Type::Int(ty) => self.build_int_cmp_binop(
                             op,
                             l.into_int_value(),
                             r.into_int_value(),
                             ty.sign,
                         )?,
-                        TypeKind::FloatType(_) => self.build_float_cmp_binop(
+                        Type::Float(_) => self.build_float_cmp_binop(
                             op,
                             l.into_float_value(),
                             r.into_float_value(),
                         )?,
-                        TypeKind::Boolean => self.build_int_cmp_binop(
+                        Type::Bool => self.build_int_cmp_binop(
                             op,
                             l.into_int_value(),
                             r.into_int_value(),
                             false,
                         )?,
+                        Type::Ptr(_) => todo!(),
                     },
                 })
             }
-            ExpressionKind::UnaryOperation(_op, _expr) => {
+            Expression::UnaryOperation(_op, _expr) => {
                 // TODO
                 //Ok(expr.build_expression(context, builder, symbol_table)?)
                 todo!()
             }
-            ExpressionKind::FunctionCall(call) => {
+            Expression::FunctionCall(call) => {
                 let call_site = self.build_function_call(call)?;
                 Ok(call_site.try_as_basic_value().unwrap_left())
             }
-            ExpressionKind::Cast(expression, to) => {
-                let from = expression.ty;
-                let value = self.build_expression(*expression)?;
+            Expression::Cast(expr, to) => {
+                let from = self.symbol_table.get_expression_type(&expr);
+                let value = self.build_expression(*expr)?;
                 let ty = to.to_llvm_type(self.context);
 
-                use TypeKind::*;
-                Ok(match (from, to) {
-                    (IntType(from), IntType(to)) => {
+                if from == to {
+                    return Ok(value);
+                }
+
+                use Type::*;
+                Ok(match (&from, to) {
+                    (Int(from), Int(to)) => {
                         let value = value.into_int_value();
                         let ty = ty.into_int_type();
                         match (from.bits < to.bits, to.sign) {
@@ -214,7 +215,7 @@ where
                         }
                         .into()
                     }
-                    (IntType(from), FloatType(_)) => {
+                    (Int(from), Float(_)) => {
                         let value = value.into_int_value();
                         let ty = ty.into_float_type();
                         if from.sign {
@@ -226,7 +227,7 @@ where
                         }
                         .into()
                     }
-                    (IntType(_), Boolean) => {
+                    (Int(_), Bool) => {
                         let from = from.to_llvm_type(self.context).into_int_type();
                         let value = value.into_int_value();
                         let zero = from.const_int(0, false);
@@ -234,7 +235,7 @@ where
                             .build_int_compare(IntPredicate::NE, value, zero, "int_to_bool")?
                             .into()
                     }
-                    (FloatType(_), IntType(to)) => {
+                    (Float(_), Int(to)) => {
                         let value = value.into_float_value();
                         let ty = ty.into_int_type();
                         if to.sign {
@@ -246,17 +247,17 @@ where
                         }
                         .into()
                     }
-                    (FloatType(from), FloatType(to)) => {
+                    (Float(from), Float(to)) => {
                         let value = value.into_float_value();
                         let ty = ty.into_float_type();
-                        if from < to {
+                        if *from < to {
                             self.builder.build_float_ext(value, ty, "fext")?
                         } else {
                             self.builder.build_float_trunc(value, ty, "ftruc")?
                         }
                         .into()
                     }
-                    (FloatType(_), Boolean) => {
+                    (Float(_), Bool) => {
                         let from = from.to_llvm_type(self.context).into_float_type();
                         let value = value.into_float_value();
                         let zero = from.const_float(0.0);
@@ -264,19 +265,21 @@ where
                             .build_float_compare(FloatPredicate::UNE, value, zero, "float_to_bool")?
                             .into()
                     }
-                    (Boolean, IntType(_)) => {
+                    (Bool, Int(_)) => {
                         let value = value.into_int_value();
                         let ty = ty.into_int_type();
                         self.builder.build_int_z_extend(value, ty, "zext")?.into()
                     }
-                    (Boolean, FloatType(_)) => {
+                    (Bool, Float(_)) => {
                         let value = value.into_int_value();
                         let ty = ty.into_float_type();
                         self.builder
                             .build_unsigned_int_to_float(value, ty, "uitofp")?
                             .into()
                     }
-                    (Boolean, Boolean) => value,
+                    (Bool, Bool) => value,
+                    (Ptr(_), _) => todo!(),
+                    (_, Ptr(_)) => todo!(),
                 })
             }
         }

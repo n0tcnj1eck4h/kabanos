@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use super::{error::SemanticError, types::TypeKind, FunctionDeclaration, FunctionDefinition};
+use super::{error::SemanticError, types::Type, FunctionDeclaration, FunctionDefinition};
 
 #[derive(Debug)]
 pub struct Variable {
     pub identifier: String,
-    pub ty: TypeKind,
+    pub ty: Type,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

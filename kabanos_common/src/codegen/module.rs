@@ -86,7 +86,7 @@ impl ModuleCodegen {
             params.push(param.ty.to_llvm_type(&self.context).into());
         }
 
-        let fn_type = match fn_decl.ty {
+        let fn_type = match &fn_decl.ty {
             Some(t) => {
                 let return_type = t.to_llvm_type(&self.context);
                 return_type.fn_type(&params, false)

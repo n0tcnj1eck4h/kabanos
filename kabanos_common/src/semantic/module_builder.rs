@@ -1,5 +1,5 @@
 use super::{
-    error::SemanticError, statement_builder::StatementBuilder, symbol::Variable, types::TypeKind,
+    error::SemanticError, statement_builder::Analyzer, symbol::Variable, types::Type,
     FunctionDeclaration, FunctionDefinition, FunctionParam, Module,
 };
 use crate::{
@@ -61,15 +61,15 @@ impl Module {
         for param in &declaration.params {
             let id = self.symbol_table.add_variable(Variable {
                 identifier: param.identifier.clone(),
-                ty: param.ty,
+                ty: param.ty.clone(),
             });
             stack.push(id);
             params.push(id);
         }
 
-        let mut statement_builder = StatementBuilder {
+        let mut statement_builder = Analyzer {
             symbol_table: &mut self.symbol_table,
-            expected_return_ty: declaration.ty,
+            expected_return_ty: declaration.ty.as_ref(),
             stack: &mut stack,
         };
 
@@ -90,7 +90,7 @@ impl Module {
         prototype: ast::FunctionPrototype,
     ) -> Result<FunctionDeclaration, Spanned<SemanticError>> {
         let name = prototype.name;
-        let ty: Option<TypeKind> = prototype
+        let ty: Option<Type> = prototype
             .return_type
             .map(|ty| ty.parse())
             .transpose()
@@ -99,7 +99,7 @@ impl Module {
         let mut params = Vec::new();
         for p in prototype.parameters {
             let identifier = p.name;
-            let ty: TypeKind =
+            let ty: Type =
                 p.ty.parse()
                     .map_err(|e: SemanticError| e.with_span(p.span))?;
             let param = FunctionParam { identifier, ty };

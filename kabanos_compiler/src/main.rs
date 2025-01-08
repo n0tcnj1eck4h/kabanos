@@ -21,10 +21,14 @@ fn main() {
         Err(err) => return println!("Syntax error: {}", err),
     };
 
+    let _ = std::fs::write("ast.txt", format!("{:#?}", ast));
+
     let semantic_module = match Module::build_module(ast) {
         Ok(semantic_module) => semantic_module,
         Err(err) => return println!("Semantic error: {:?}", err),
     };
+
+    let _ = std::fs::write("semantic.txt", format!("{:#?}", semantic_module));
 
     let codegen = ModuleCodegen::default();
     let llvm_module = match codegen.build_module(semantic_module, "main") {

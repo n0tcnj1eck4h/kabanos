@@ -1,6 +1,11 @@
 extern fn putchar(i32 c): i32;
 
-fn print_ascii() {
+fn main(): i32 {
+  putchar('h');
+  return 2 + 1;
+}
+
+fn print_ascii(): i32 {
   let i: i32 = 0;
 
   while i < 256 {
@@ -8,42 +13,34 @@ fn print_ascii() {
     i = i + 1;
   }
 
-  return;
+  return 0;
 }
 
-fn main(): i32 {
-  putchar('\n');
-  #print_ascii();
-  #fibonacci(10);
-  print_i32(1);
-  return true as i32;
-}
+#fn print_i32(i32 n) {
+#  putchar(n / 1000 % 10 + 48);
+#  putchar(n / 100  % 10 + 48);
+#  putchar(n / 10   % 10 + 48);
+#  putchar(n        % 10 + 48);
+#  return;
+#}
 
-fn print_i32(i32 n) {
-  putchar(n / 1000 % 10 + 48);
-  putchar(n / 100  % 10 + 48);
-  putchar(n / 10   % 10 + 48);
-  putchar(n        % 10 + 48);
-  return;
-}
-
-fn fibonacci(i32 n): i32 {
-  let i: i32 = 0;
-  let a: i32 = i;
-  let b: i32 = 2;
-  
-  while i < n {
-    putchar(10);
-    print_i32(a);
-
-    let c: i32 = a + b;
-    a = b;
-    b = c;
-    i = i + 1;
-  }
-  
-  return b;
-}
+#fn fibonacci(i32 n): i32 {
+#  let i: i32 = 0 as i32;
+#  let a: i32 = i;
+#  let b: i32 = 2 as i32;
+#  
+#  while i < n {
+#    putchar(10);
+#    print_i32(a);
+#
+#    let c: i32 = a + b;
+#    a = b;
+#    b = c;
+#    i = i + 1;
+#  }
+#  
+#  return b;
+#}
 
 
 # Imports

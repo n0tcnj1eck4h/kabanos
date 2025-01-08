@@ -9,7 +9,7 @@ pub mod types;
 
 use expression::Expression;
 use symbol::{FunctionID, SymbolTable, VariableID};
-use types::TypeKind;
+use types::Type;
 
 #[derive(Default, Debug)]
 pub struct Module {
@@ -26,13 +26,13 @@ pub struct Scope {
 pub struct FunctionDeclaration {
     pub name: String,
     pub params: Vec<FunctionParam>,
-    pub ty: Option<TypeKind>,
+    pub ty: Option<Type>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionParam {
     pub identifier: String,
-    pub ty: TypeKind,
+    pub ty: Type,
 }
 
 #[derive(Debug)]

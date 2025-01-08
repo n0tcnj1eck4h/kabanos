@@ -1,24 +1,23 @@
 use crate::{
     ast,
-    span::{HasSpan, Span, Spanned, WithSpan as _},
+    span::{HasSpan, Span, Spanned, WithSpan},
 };
 
 use super::{
     error::SemanticError,
-    expression::{Expression, ExpressionKind, LValue},
-    expression_builder::ExpressionBuilder,
+    expression::{Expression, LValue},
     symbol::{SymbolTable, Variable, VariableID},
-    types::TypeKind,
+    types::Type,
     FunctionCall, Scope, Statement,
 };
 
-pub struct StatementBuilder<'a> {
+pub struct Analyzer<'a, 'b> {
     pub symbol_table: &'a mut SymbolTable,
-    pub expected_return_ty: Option<TypeKind>,
+    pub expected_return_ty: Option<&'b Type>,
     pub stack: &'a mut Vec<VariableID>,
 }
 
-impl StatementBuilder<'_> {
+impl Analyzer<'_, '_> {
     pub fn build_statements<I>(&mut self, iter: I) -> Result<Vec<Statement>, Spanned<SemanticError>>
     where
         I: IntoIterator<Item = ast::Statement>,
@@ -29,7 +28,7 @@ impl StatementBuilder<'_> {
         while let Some(statement) = iter.next() {
             match statement {
                 ast::Statement::Conditional(expr, true_block, else_block) => {
-                    let expr = self.build_expression(expr, Some(TypeKind::Boolean))?;
+                    let expr = self.build_expression(expr, Some(&Type::Bool))?;
 
                     let true_block = self.build_statements(*true_block)?;
 
@@ -42,14 +41,16 @@ impl StatementBuilder<'_> {
                 }
                 ast::Statement::Expression(expr) => {
                     // Treat void funtion calls as statements
-                    if let ast::Expression::FunctionCall(ref name, ref args) = *expr {
-                        let span = expr.get_span();
+                    let span = expr.get_span();
+                    let expr = expr.unwrap();
+                    if let ast::Expression::FunctionCall(name, args) = &expr {
                         let fn_id =
                             self.symbol_table
                                 .get_function_id_by_name(name)
                                 .ok_or_else(|| {
                                     SemanticError::Undeclared(name.clone()).with_span(span)
                                 })?;
+
                         let fn_decl = self.symbol_table.get_function(fn_id);
                         if fn_decl.ty.is_none() {
                             let params = &fn_decl.params;
@@ -58,10 +59,10 @@ impl StatementBuilder<'_> {
                             }
 
                             let args: Result<Vec<_>, _> = params
-                                .iter()
-                                .zip(args)
+                                .into_iter()
+                                .zip(args.into_iter())
                                 .map(|(param, expr)| {
-                                    self.build_expression(expr.clone(), Some(param.ty))
+                                    self.build_expression(expr.clone(), Some(&param.ty))
                                 })
                                 .collect();
 
@@ -74,10 +75,13 @@ impl StatementBuilder<'_> {
                             continue;
                         }
                     }
-                    statements.push(Statement::Expression(self.build_expression(expr, None)?));
+
+                    statements.push(Statement::Expression(
+                        self.build_expression(expr.with_span(span), None)?,
+                    ));
                 }
                 ast::Statement::Loop(expr, s) => {
-                    let expr = self.build_expression(expr, Some(TypeKind::Boolean))?;
+                    let expr = self.build_expression(expr, Some(&Type::Bool))?;
                     let s = self.build_statements(*s)?;
                     statements.push(Statement::Loop(expr, s));
                 }
@@ -97,32 +101,33 @@ impl StatementBuilder<'_> {
                     }
                     _ => {
                         return Err(SemanticError::ReturnTypeMismatch {
-                            expected: self.expected_return_ty,
+                            expected: self.expected_return_ty.cloned(),
                         }
                         .with_span(Span::default()));
                     }
                 },
                 ast::Statement::LocalVar(identifier, ty, expr) => {
                     let ty_str =
-                        ty.ok_or_else(|| SemanticError::ImplicitType.with_span(Span::default()))?;
-                    let ty: TypeKind = ty_str
+                        ty.ok_or(SemanticError::ImplicitType.with_span(identifier.get_span()))?;
+
+                    let ty: Type = ty_str
                         .parse()
-                        .map_err(|e: SemanticError| e.with_span(Span::default()))?;
+                        .map_err(|e: SemanticError| e.with_span(ty_str.get_span()))?;
 
                     let identifier = identifier.unwrap();
-                    let symbol = Variable { identifier, ty };
+                    let symbol = Variable {
+                        identifier,
+                        ty: ty.clone(),
+                    };
                     let symbol_id = self.symbol_table.add_variable(symbol);
 
                     let mut body = Vec::new();
                     if let Some(expr) = expr {
-                        let span = expr.get_span();
-                        let expr = self.build_expression(expr, Some(ty))?;
-                        let ty = expr.ty;
+                        let expr = self.build_expression(expr, Some(&ty))?;
                         let kind =
-                            ExpressionKind::Assignment(LValue::LocalVar(symbol_id), Box::new(expr));
-                        body.push(Statement::Expression(Expression { kind, ty, span }));
+                            Expression::Assignment(LValue::LocalVar(symbol_id), Box::new(expr));
+                        body.push(Statement::Expression(kind));
                     };
-
                     self.stack.push(symbol_id);
                     body.extend(self.build_statements(iter)?.into_iter());
                     self.stack.pop();
@@ -139,20 +144,6 @@ impl StatementBuilder<'_> {
         }
 
         Ok(statements)
-    }
-
-    fn build_expression(
-        &self,
-        expr: Spanned<ast::Expression>,
-        expected_ty: Option<TypeKind>,
-    ) -> Result<Expression, Spanned<SemanticError>> {
-        let experssion_builder = ExpressionBuilder {
-            stack: self.stack,
-            symbol_table: self.symbol_table,
-            expected_ty,
-        };
-
-        experssion_builder.build_expression(expr)
     }
 }
 
