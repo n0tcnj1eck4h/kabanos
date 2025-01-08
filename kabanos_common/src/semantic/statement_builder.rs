@@ -107,12 +107,10 @@ impl Analyzer<'_, '_> {
                     }
                 },
                 ast::Statement::LocalVar(identifier, ty, expr) => {
-                    let ty_str =
+                    let ast_ty =
                         ty.ok_or(SemanticError::ImplicitType.with_span(identifier.get_span()))?;
 
-                    let ty: Type = ty_str
-                        .parse()
-                        .map_err(|e: SemanticError| e.with_span(ty_str.get_span()))?;
+                    let ty: Type = ast_ty.try_into()?;
 
                     let identifier = identifier.unwrap();
                     let symbol = Variable {

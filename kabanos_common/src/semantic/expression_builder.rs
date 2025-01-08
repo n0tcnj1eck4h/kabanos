@@ -47,6 +47,7 @@ impl Analyzer<'_, '_> {
             ast::Expression::StringLiteral(_) => {
                 panic!("String literals are not supported yet")
             }
+            ast::Expression::Cast(expr, ty) => self.build_cast(*expr, ty),
         }?;
 
         if let Some(expected) = expected_ty {
@@ -60,6 +61,17 @@ impl Analyzer<'_, '_> {
         }
 
         Ok(expr)
+    }
+
+    fn build_cast(
+        &self,
+        expr: Spanned<ast::Expression>,
+        ty: ast::Type,
+    ) -> Result<Expression, SemanticError> {
+        let ty: Type = ty.try_into()?;
+        let expr = self.build_inner_expression(expr.unwrap(), None)?;
+        let kind = Expression::Cast(Box::new(expr), ty.clone());
+        return Ok(kind);
     }
 
     fn build_float_literal(
@@ -153,8 +165,8 @@ impl Analyzer<'_, '_> {
         prefered_type: Option<&Type>,
     ) -> Result<Expression, SemanticError> {
         let default_int_type = IntTy {
-            bits: IntSizes::I64,
-            sign: false,
+            bits: IntSizes::I32,
+            sign: true,
         };
 
         let int_type = match prefered_type {
@@ -178,17 +190,6 @@ impl Analyzer<'_, '_> {
         right: Spanned<ast::Expression>,
         prefered_type: Option<&Type>,
     ) -> Result<Expression, SemanticError> {
-        if op == Operator::As {
-            let ast::Expression::Identifier(ident) = right.unwrap() else {
-                return Err(SemanticError::BadCast);
-            };
-
-            let ty: Type = ident.parse()?;
-            let left = self.build_inner_expression(left.unwrap(), None)?;
-            let kind = Expression::Cast(Box::new(left), ty.clone());
-            return Ok(kind);
-        }
-
         if op == Operator::Assign {
             let left = self.build_inner_expression(left.unwrap(), None)?;
             let Expression::LValue(LValue::LocalVar(variable_id)) = left else {

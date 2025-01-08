@@ -77,6 +77,7 @@ pub enum UnaryOperator {
     Negative,
     LogicNot,
     BitNot,
+    Deref,
 }
 
 impl TryFrom<Operator> for UnaryOperator {
@@ -86,6 +87,7 @@ impl TryFrom<Operator> for UnaryOperator {
             Operator::Minus => Ok(Self::Negative),
             Operator::Exclamation => Ok(Self::LogicNot),
             Operator::Tilde => Ok(Self::BitNot),
+            Operator::Asterisk => Ok(Self::Deref),
             _ => Err(SemanticError::NotUnaryOp(value)),
         }
     }

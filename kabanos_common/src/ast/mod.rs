@@ -20,7 +20,7 @@ pub struct FunctionPrototype {
     pub name: String,
     pub parameters: Vec<Parameter>,
     pub calling_convention: Option<String>,
-    pub return_type: Option<String>,
+    pub return_type: Option<Type>,
     pub span: Span,
 }
 
@@ -43,7 +43,7 @@ pub struct Import {
 
 #[derive(Debug, Clone)]
 pub struct Parameter {
-    pub ty: String,
+    pub ty: Type,
     pub name: String,
     pub span: Span,
 }
@@ -54,7 +54,7 @@ pub enum Statement {
     Conditional(Spanned<Expression>, Box<Statement>, Option<Box<Statement>>),
     LocalVar(
         Spanned<String>,
-        Option<Spanned<String>>,
+        Option<Spanned<Type>>,
         Option<Spanned<Expression>>,
     ),
     Loop(Spanned<Expression>, Box<Statement>),
@@ -72,6 +72,7 @@ pub enum Expression {
     BinaryOp(Box<Spanned<Expression>>, Operator, Box<Spanned<Expression>>),
     UnaryOperation(Operator, Box<Spanned<Expression>>),
     FunctionCall(String, Vec<Spanned<Expression>>),
+    Cast(Box<Spanned<Expression>>, Type),
 }
 
 impl Expression {
@@ -84,7 +85,8 @@ impl Expression {
             Expression::UnaryOperation(_, expr) => expr.is_strongly_typed(),
             Expression::BinaryOp(l, _, r) => l.is_strongly_typed() || r.is_strongly_typed(),
 
-            Expression::FunctionCall(_, _)
+            Expression::FunctionCall(..)
+            | Expression::Cast(..)
             | Expression::Identifier(_)
             | Expression::StringLiteral(_) => true,
         }
@@ -101,4 +103,10 @@ pub struct CompositeField {
 pub struct Composite {
     pub name: String,
     pub fields: Vec<CompositeField>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Type {
+    pub name: String,
+    pub pointers: u32,
 }

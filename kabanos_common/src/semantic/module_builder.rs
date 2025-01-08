@@ -92,7 +92,7 @@ impl Module {
         let name = prototype.name;
         let ty: Option<Type> = prototype
             .return_type
-            .map(|ty| ty.parse())
+            .map(|ty| ty.try_into())
             .transpose()
             .map_err(|e: SemanticError| e.with_span(prototype.span))?;
 
@@ -100,7 +100,7 @@ impl Module {
         for p in prototype.parameters {
             let identifier = p.name;
             let ty: Type =
-                p.ty.parse()
+                p.ty.try_into()
                     .map_err(|e: SemanticError| e.with_span(p.span))?;
             let param = FunctionParam { identifier, ty };
             params.push(param);

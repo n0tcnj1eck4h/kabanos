@@ -57,6 +57,7 @@ pub enum Keyword {
     STRUCT,
     LET,
     RETURN,
+    AS,
 }
 
 impl PartialEq<Keyword> for Token {
@@ -75,6 +76,7 @@ impl FromStr for Keyword {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "if" => Ok(Keyword::IF),
+            "as" => Ok(Keyword::AS),
             "else" => Ok(Keyword::ELSE),
             "fn" => Ok(Keyword::FUNCTION),
             "let" => Ok(Keyword::LET),
@@ -118,14 +120,12 @@ pub enum Operator {
     Exclamation,
     //////
     ScopeResolution,
-    As,
 }
 
 #[rustfmt::skip]
 impl Operator {
     pub fn get_precedence(&self) -> i32 {
         match self {
-           Operator::As              => 200,
            Operator::Asterisk        => 100,
            Operator::Divide          => 100,
            Operator::Modulo          => 100,

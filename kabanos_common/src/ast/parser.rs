@@ -12,6 +12,8 @@ use crate::{
     token::{Keyword, Operator, Token},
 };
 
+use super::Type;
+
 pub struct Parser<L> {
     lexer: L,
     token: Spanned<Token>,
@@ -156,16 +158,13 @@ where
         let mut parameters = Vec::new();
         loop {
             let mut span = self.token.get_span();
-            if let Token::Identifier(ref mut param_type) = *self.token {
-                let param_type = mem::take(param_type);
-                self.advance()?;
+
+            if let Token::Identifier(_) | Token::Operator(Operator::Asterisk) = *self.token {
+                let ty = self.ty()?;
                 span = span.join(self.token.get_span());
                 if let Token::Identifier(ref mut name) = *self.token {
-                    parameters.push(Parameter {
-                        ty: param_type,
-                        name: mem::take(name),
-                        span,
-                    });
+                    let name = mem::take(name);
+                    parameters.push(Parameter { ty, name, span });
                     self.advance()?;
                 }
             }
@@ -177,6 +176,23 @@ where
 
             self.expect(Token::Atom(','))?;
         }
+    }
+
+    fn ty(&mut self) -> Result<Type, ParsingError> {
+        let mut pointers = 0;
+        while let Token::Operator(Operator::Asterisk) = *self.token {
+            pointers += 1;
+            self.advance()?;
+        }
+
+        if let Token::Identifier(ref mut ty) = *self.token {
+            let name = mem::take(ty);
+            let ty = Type { name, pointers };
+            self.advance()?;
+            return Ok(ty);
+        }
+
+        self.error()
     }
 
     pub fn import(&mut self) -> Result<Import, ParsingError> {
@@ -222,14 +238,8 @@ where
         let mut explicit_type = None;
         if *self.token == ':' {
             self.advance()?;
-
             let span = self.token.get_span();
-            let Token::Identifier(ref mut identifier) = *self.token else {
-                return self.error();
-            };
-
-            explicit_type = Some(mem::take(identifier).with_span(span));
-            self.advance()?;
+            explicit_type = Some(self.ty()?.with_span(span));
         }
 
         let initial_value = if *self.token == Operator::Assign {
@@ -337,26 +347,22 @@ where
 
     fn primary(&mut self) -> Result<Spanned<Expression>, ParsingError> {
         let span = self.token.get_span();
-        match *self.token {
+        let expr = match *self.token {
             Token::Char(ch) => {
                 self.advance()?;
-                let kind = Expression::IntegerLiteral(ch.into());
-                Ok(kind.with_span(span))
+                Expression::IntegerLiteral(ch.into()).with_span(span)
             }
             Token::IntegerLiteral(integer) => {
                 self.advance()?;
-                let kind = Expression::IntegerLiteral(integer);
-                Ok(kind.with_span(span))
+                Expression::IntegerLiteral(integer).with_span(span)
             }
             Token::FloatingPointLiteral(float) => {
                 self.advance()?;
-                let kind = Expression::FloatLiteral(float);
-                Ok(kind.with_span(span))
+                Expression::FloatLiteral(float).with_span(span)
             }
             Token::BooleanLiteral(boolean) => {
                 self.advance()?;
-                let kind = Expression::BooleanLiteral(boolean);
-                Ok(kind.with_span(span))
+                Expression::BooleanLiteral(boolean).with_span(span)
             }
             Token::Identifier(ref mut identifier) => {
                 let identifier = mem::take(identifier);
@@ -373,24 +379,32 @@ where
                     }
                     let span = span.join(self.token.get_span());
                     self.advance()?;
-                    let kind = Expression::FunctionCall(identifier, args);
-                    Ok(kind.with_span(span))
+                    Expression::FunctionCall(identifier, args).with_span(span)
                 } else {
-                    let kind = Expression::Identifier(identifier);
-                    Ok(kind.with_span(span))
+                    Expression::Identifier(identifier).with_span(span)
                 }
             }
             Token::StringLiteral(ref mut literal) => {
                 let literal = mem::take(literal);
                 self.advance()?;
-                let kind = Expression::StringLiteral(literal);
-                Ok(kind.with_span(span))
+                Expression::StringLiteral(literal).with_span(span)
             }
-            Token::Operator(op) => self.unary(op),
-            Token::Atom('(') => self.parenthesis_expression(),
-            _ => Err(ParsingError::ExpressionExpectedError(mem::take(
-                &mut self.token,
-            ))),
+            Token::Operator(op) => self.unary(op)?,
+            Token::Atom('(') => self.parenthesis_expression()?,
+            _ => {
+                return Err(ParsingError::ExpressionExpectedError(mem::take(
+                    &mut self.token,
+                )))
+            }
+        };
+
+        if let Token::Keyword(Keyword::AS) = *self.token {
+            self.advance()?;
+            let ty = self.ty()?;
+            let span = span.join(self.token.get_span());
+            Ok(Expression::Cast(Box::new(expr), ty).with_span(span))
+        } else {
+            Ok(expr)
         }
     }
 
@@ -485,10 +499,7 @@ where
                 let mut return_type = None;
                 if *self.token == ':' {
                     self.advance()?;
-                    if let Token::Identifier(ref mut ret_type) = *self.token {
-                        return_type = Some(mem::take(ret_type));
-                        self.advance()?;
-                    }
+                    return_type = Some(self.ty()?);
                 }
                 span = self.token.get_span().join(span);
                 return Ok(FunctionPrototype {

@@ -3,6 +3,11 @@ use std::{
     str::FromStr,
 };
 
+use crate::{
+    ast,
+    span::{HasSpan, Spanned, WithSpan},
+};
+
 use super::{
     error::SemanticError,
     expression::{Expression, LValue},
@@ -59,12 +64,13 @@ impl Type {
     }
 }
 
-impl FromStr for Type {
-    type Err = SemanticError;
+impl TryFrom<ast::Type> for Type {
+    type Error = SemanticError;
+
     #[rustfmt::skip]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn try_from(value: ast::Type) -> Result<Self, Self::Error> {
         use IntSizes::*;
-        Ok(match s {
+        let mut ty = match value.name.as_str() {
             "bool" => Type::Bool,                                  
             "f32"  => Type::Float(FloatTy::F32),                  
             "f64"  => Type::Float(FloatTy::F64),                  
@@ -76,8 +82,26 @@ impl FromStr for Type {
             "u32"  => Type::Int(IntTy { bits: I32, sign: false, }),     
             "i64"  => Type::Int(IntTy { bits: I64, sign: true,  }),     
             "u64"  => Type::Int(IntTy { bits: I64, sign: false, }),     
-            _ => return Err(SemanticError::NotPrimitive(s.to_string())),
-        })
+            _ => return Err(SemanticError::NotPrimitive(value.name)),
+        };
+
+        for _ in 0..value.pointers {
+            ty = Type::Ptr(Box::new(ty));
+        }
+
+        Ok(ty)
+    }
+}
+
+impl TryFrom<Spanned<ast::Type>> for Type {
+    type Error = Spanned<SemanticError>;
+
+    #[rustfmt::skip]
+    fn try_from(value: Spanned<ast::Type>) -> Result<Self, Self::Error> {
+        let span = value.get_span();
+        let value = value.unwrap();
+        let ty: Type = value.try_into().map_err(|e: SemanticError| e.with_span(span))?;
+        Ok(ty)
     }
 }
 

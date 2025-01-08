@@ -106,7 +106,6 @@ where
             return match buf.as_str() {
                 "false" => self.token(Token::BooleanLiteral(false)),
                 "true" => self.token(Token::BooleanLiteral(true)),
-                "as" => self.token(Token::Operator(Operator::As)),
                 _ => self.token(Token::Identifier(buf)),
             };
         }
