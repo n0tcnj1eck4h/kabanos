@@ -1,7 +1,4 @@
-use std::{
-    fmt::{Debug, Display},
-    str::FromStr,
-};
+use std::fmt::{Debug, Display};
 
 use crate::{
     ast,
@@ -11,7 +8,7 @@ use crate::{
 use super::{
     error::SemanticError,
     expression::{Expression, LValue},
-    operator::BinaryOperator,
+    operator::{BinaryOperator, UnaryOperator},
     symbol::SymbolTable,
 };
 
@@ -45,7 +42,7 @@ pub enum Type {
 
 impl Type {
     #[rustfmt::skip]
-    pub fn as_str(&self) -> &'static str {
+    pub fn to_string(&self) -> String {
         use IntSizes::*;
         match self {
             Type::Bool => "bool",
@@ -59,8 +56,8 @@ impl Type {
             Type::Int(IntTy { bits: I32, sign: false }) => "u32",
             Type::Int(IntTy { bits: I64, sign: true  }) => "i64",
             Type::Int(IntTy { bits: I64, sign: false }) => "u64",
-            Type::Ptr(_) => "ptr",
-        }
+            Type::Ptr(ty) => return format!("*{}", ty.to_string()),
+        }.to_string()
     }
 }
 
@@ -107,7 +104,7 @@ impl TryFrom<Spanned<ast::Type>> for Type {
 
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -124,6 +121,15 @@ impl SymbolTable {
             Expression::BooleanLiteral(_) => Type::Bool,
             Expression::IntegerLiteral(_, int_ty) => Type::Int(*int_ty),
             Expression::FloatLiteral(_, float_ty) => Type::Float(*float_ty),
+            Expression::UnaryOperation(UnaryOperator::Deref, expr) => {
+                let Type::Ptr(ty) = self.get_expression_type(&expr) else {
+                    panic!("This should never happen");
+                };
+                return *ty;
+            }
+            Expression::UnaryOperation(UnaryOperator::Ref, expr) => {
+                Type::Ptr(Box::new(self.get_expression_type(&expr)))
+            }
             Expression::UnaryOperation(_, expr) => self.get_expression_type(&expr),
             Expression::FunctionCall(call) => {
                 let fn_decl = self.get_function(call.id);

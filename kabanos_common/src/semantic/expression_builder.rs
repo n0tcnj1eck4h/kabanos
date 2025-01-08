@@ -112,19 +112,26 @@ impl Analyzer<'_, '_> {
         prefered_type: Option<&Type>,
     ) -> Result<Expression, SemanticError> {
         let operator = op.try_into()?;
-        let expr = self.build_inner_expression(expr.unwrap(), prefered_type)?;
-        let ty = self.symbol_table.get_expression_type(&expr);
-        // TODO
-        match (operator, ty) {
-            (UnaryOperator::Negative, Type::Int(_))
-            | (UnaryOperator::Negative, Type::Float(_))
-            | (UnaryOperator::LogicNot, Type::Bool)
-            | (UnaryOperator::BitNot, Type::Int(_)) => {}
-            (_, ty) => return Err(SemanticError::InvalidUnaryOp(operator, ty)),
-        };
 
-        let kind = Expression::UnaryOperation(operator, Box::new(expr));
-        Ok(kind)
+        if let Some(prefered_type) = prefered_type {
+            let prefered_operand_type = match (operator, prefered_type) {
+                (UnaryOperator::Negative, ty @ Type::Int(_))
+                | (UnaryOperator::Negative, ty @ Type::Float(_))
+                | (UnaryOperator::LogicNot, ty @ Type::Bool)
+                | (UnaryOperator::BitNot, ty @ Type::Int(_)) => ty.clone(),
+                (UnaryOperator::Ref, Type::Ptr(ty)) => ty.as_ref().clone(),
+                (UnaryOperator::Deref, ty) => Type::Ptr(Box::new(ty.clone())),
+                (_, ty) => return Err(SemanticError::InvalidUnaryOp(operator, ty.clone())),
+            };
+
+            let expr = self.build_inner_expression(expr.unwrap(), Some(&prefered_operand_type))?;
+            let kind = Expression::UnaryOperation(operator, Box::new(expr));
+            Ok(kind)
+        } else {
+            let expr = self.build_inner_expression(expr.unwrap(), None)?;
+            let kind = Expression::UnaryOperation(operator, Box::new(expr));
+            Ok(kind)
+        }
     }
 
     fn build_function_call(
