@@ -40,27 +40,6 @@ pub enum Type {
     Bool,
 }
 
-impl Type {
-    #[rustfmt::skip]
-    pub fn to_string(&self) -> String {
-        use IntSizes::*;
-        match self {
-            Type::Bool => "bool",
-            Type::Float(FloatTy::F32) => "f32",
-            Type::Float(FloatTy::F64) => "f64",
-            Type::Int(IntTy { bits: I8,  sign: true  }) => "i8",
-            Type::Int(IntTy { bits: I8,  sign: false }) => "u8",
-            Type::Int(IntTy { bits: I16, sign: true  }) => "i16",
-            Type::Int(IntTy { bits: I16, sign: false }) => "u16",
-            Type::Int(IntTy { bits: I32, sign: true  }) => "i32",
-            Type::Int(IntTy { bits: I32, sign: false }) => "u32",
-            Type::Int(IntTy { bits: I64, sign: true  }) => "i64",
-            Type::Int(IntTy { bits: I64, sign: false }) => "u64",
-            Type::Ptr(ty) => return format!("*{}", ty.to_string()),
-        }.to_string()
-    }
-}
-
 impl TryFrom<ast::Type> for Type {
     type Error = SemanticError;
 
@@ -104,7 +83,50 @@ impl TryFrom<Spanned<ast::Type>> for Type {
 
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        use IntSizes::*;
+        use Type::*;
+        let s = match self {
+            Bool => "bool",
+            Float(FloatTy::F32) => "f32",
+            Float(FloatTy::F64) => "f64",
+            Int(IntTy {
+                bits: I8,
+                sign: true,
+            }) => "i8",
+            Int(IntTy {
+                bits: I8,
+                sign: false,
+            }) => "u8",
+            Int(IntTy {
+                bits: I16,
+                sign: true,
+            }) => "i16",
+            Int(IntTy {
+                bits: I16,
+                sign: false,
+            }) => "u16",
+            Int(IntTy {
+                bits: I32,
+                sign: true,
+            }) => "i32",
+            Int(IntTy {
+                bits: I32,
+                sign: false,
+            }) => "u32",
+            Int(IntTy {
+                bits: I64,
+                sign: true,
+            }) => "i64",
+            Int(IntTy {
+                bits: I64,
+                sign: false,
+            }) => "u64",
+            Ptr(ty) => {
+                write!(f, "*")?;
+                return Display::fmt(ty, f);
+            }
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -122,15 +144,15 @@ impl SymbolTable {
             Expression::IntegerLiteral(_, int_ty) => Type::Int(*int_ty),
             Expression::FloatLiteral(_, float_ty) => Type::Float(*float_ty),
             Expression::UnaryOperation(UnaryOperator::Deref, expr) => {
-                let Type::Ptr(ty) = self.get_expression_type(&expr) else {
+                let Type::Ptr(ty) = self.get_expression_type(expr) else {
                     panic!("This should never happen");
                 };
-                return *ty;
+                *ty
             }
             Expression::UnaryOperation(UnaryOperator::Ref, expr) => {
-                Type::Ptr(Box::new(self.get_expression_type(&expr)))
+                Type::Ptr(Box::new(self.get_expression_type(expr)))
             }
-            Expression::UnaryOperation(_, expr) => self.get_expression_type(&expr),
+            Expression::UnaryOperation(_, expr) => self.get_expression_type(expr),
             Expression::FunctionCall(call) => {
                 let fn_decl = self.get_function(call.id);
                 fn_decl.ty.clone().expect("This should never happen")

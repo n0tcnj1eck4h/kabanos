@@ -61,7 +61,7 @@ where
         }
 
         self.advance();
-        return Ok(ch);
+        Ok(ch)
     }
 }
 

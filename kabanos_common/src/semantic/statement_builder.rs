@@ -59,8 +59,8 @@ impl Analyzer<'_, '_> {
                             }
 
                             let args: Result<Vec<_>, _> = params
-                                .into_iter()
-                                .zip(args.into_iter())
+                                .iter()
+                                .zip(args.iter())
                                 .map(|(param, expr)| {
                                     self.build_expression(expr.clone(), Some(&param.ty))
                                 })

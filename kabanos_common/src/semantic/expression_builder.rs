@@ -71,7 +71,7 @@ impl Analyzer<'_, '_> {
         let ty: Type = ty.try_into()?;
         let expr = self.build_inner_expression(expr.unwrap(), None)?;
         let kind = Expression::Cast(Box::new(expr), ty.clone());
-        return Ok(kind);
+        Ok(kind)
     }
 
     fn build_float_literal(
@@ -81,7 +81,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<Expression, SemanticError> {
         let float_type = match prefered_type {
             None => FloatTy::F32,
-            Some(Type::Float(float_ty)) => float_ty.clone(),
+            Some(Type::Float(float_ty)) => *float_ty,
             Some(ty) => {
                 return Err(SemanticError::TypeMismatch {
                     expected: ty.clone(),
@@ -177,7 +177,7 @@ impl Analyzer<'_, '_> {
         };
 
         let int_type = match prefered_type {
-            Some(Type::Int(int_ty)) => int_ty.clone(),
+            Some(Type::Int(int_ty)) => *int_ty,
             None => default_int_type,
             Some(ty) => {
                 return Err(SemanticError::TypeMismatch {
@@ -187,7 +187,7 @@ impl Analyzer<'_, '_> {
             }
         };
 
-        return Ok(Expression::IntegerLiteral(i, int_type));
+        Ok(Expression::IntegerLiteral(i, int_type))
     }
 
     fn build_binop(
