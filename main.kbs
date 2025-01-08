@@ -7,8 +7,10 @@ fn main(): i32 {
 
 fn print_ascii(): i32 {
   let i: i32 = 0;
+  let n: u64 = 2;
+  let b: u8 = (2 + 1 + n * 2) as u8;
 
-  while i < 256 {
+  while 256 > i {
     putchar(i);
     i = i + 1;
   }

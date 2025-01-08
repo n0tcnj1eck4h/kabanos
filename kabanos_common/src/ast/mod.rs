@@ -79,9 +79,10 @@ impl Expression {
         match self {
             Expression::IntegerLiteral(_)
             | Expression::FloatLiteral(_)
-            | Expression::BooleanLiteral(_)
-            | Expression::BinaryOp(_, _, _)
-            | Expression::UnaryOperation(_, _) => false,
+            | Expression::BooleanLiteral(_) => false,
+
+            Expression::UnaryOperation(_, expr) => expr.is_strongly_typed(),
+            Expression::BinaryOp(l, _, r) => l.is_strongly_typed() || r.is_strongly_typed(),
 
             Expression::FunctionCall(_, _)
             | Expression::Identifier(_)

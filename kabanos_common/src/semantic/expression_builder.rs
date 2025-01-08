@@ -189,18 +189,6 @@ impl Analyzer<'_, '_> {
             return Ok(kind);
         }
 
-        // let (left, right) = {
-        //     if right.is_strongly_typed() {
-        //         let right = self.build_inner_expression(right, None)?;
-        //         let left = self.build_inner_expression(left, Some(&right.ty))?;
-        //         (left, right)
-        //     } else {
-        //         let left = self.build_inner_expression(left, None)?;
-        //         let right = self.build_inner_expression(right, Some(&left.ty))?;
-        //         (left, right)
-        //     }
-        // };
-
         if op == Operator::Assign {
             let left = self.build_inner_expression(left.unwrap(), None)?;
             let Expression::LValue(LValue::LocalVar(variable_id)) = left else {
@@ -215,20 +203,34 @@ impl Analyzer<'_, '_> {
         }
 
         let binop: BinaryOperator = op.try_into()?;
-        let prefered_type = match (binop, prefered_type.unwrap()) {
-            (BinaryOperator::Logic(_), Type::Bool) => None,
-            (BinaryOperator::Comparaison(_), Type::Bool) => None,
-            (BinaryOperator::Bitwise(_), ty @ Type::Int(_)) => Some(ty),
-            (BinaryOperator::Arithmetic(_), ty @ Type::Int(_)) => Some(ty),
-            (BinaryOperator::Arithmetic(_), ty @ Type::Float(_)) => Some(ty),
+        let prefered_type = match (binop, prefered_type) {
+            (_, None) => None,
+            (BinaryOperator::Logic(_), Some(Type::Bool)) => None,
+            (BinaryOperator::Comparaison(_), Some(Type::Bool)) => None,
+            (BinaryOperator::Bitwise(_), Some(ty @ Type::Int(_))) => Some(ty),
+            (BinaryOperator::Arithmetic(_), Some(ty @ Type::Int(_))) => Some(ty),
+            (BinaryOperator::Arithmetic(_), Some(ty @ Type::Float(_))) => Some(ty),
             _ => return Err(SemanticError::InvalidBinOp),
         };
 
-        let left = self.build_inner_expression(left.unwrap(), prefered_type)?;
-        let ty = self.symbol_table.get_expression_type(&left);
-        let right = self.build_inner_expression(right.unwrap(), Some(&ty))?;
-
-        let kind = Expression::BinaryOperation(Box::new(left), binop, Box::new(right));
-        Ok(kind)
+        if left.is_strongly_typed() {
+            let left = self.build_inner_expression(left.unwrap(), prefered_type)?;
+            let ty = self.symbol_table.get_expression_type(&left);
+            let right = self.build_inner_expression(right.unwrap(), Some(&ty))?;
+            Ok(Expression::BinaryOperation(
+                Box::new(left),
+                binop,
+                Box::new(right),
+            ))
+        } else {
+            let right = self.build_inner_expression(right.unwrap(), prefered_type)?;
+            let ty = self.symbol_table.get_expression_type(&right);
+            let left = self.build_inner_expression(left.unwrap(), Some(&ty))?;
+            Ok(Expression::BinaryOperation(
+                Box::new(left),
+                binop,
+                Box::new(right),
+            ))
+        }
     }
 }
