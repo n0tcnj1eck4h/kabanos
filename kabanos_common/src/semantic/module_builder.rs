@@ -12,19 +12,19 @@ impl Module {
         let mut module = Module::default();
         let mut errors = Vec::new();
 
-        for s in ast_module.fn_declarations {
+        for s in ast_module.fn_decls {
             if let Err(err) = module.build_delaration(s) {
                 errors.push(err);
             }
         }
 
-        for s in ast_module.fn_definitions.iter() {
+        for s in ast_module.fn_defs.iter() {
             if let Err(err) = module.build_delaration(s.prototype.clone()) {
                 errors.push(err);
             }
         }
 
-        for s in ast_module.fn_definitions {
+        for s in ast_module.fn_defs {
             if let Err(err) = module.build_definition(s) {
                 errors.push(err);
             }

@@ -15,20 +15,20 @@ fn main() {
     };
 
     let mut parser = Parser::new(tokens.into_iter()).expect("Stream is empty");
-
     let ast = match parser.module() {
         Ok(ast) => ast,
         Err(err) => return println!("Syntax error: {}", err),
     };
 
-    let _ = std::fs::write("ast.txt", format!("{:#?}", ast));
+    std::fs::write("ast.txt", format!("{:#?}", ast)).expect("Failed to write ast.txt");
 
     let semantic_module = match Module::build_module(ast) {
         Ok(semantic_module) => semantic_module,
         Err(err) => return println!("Semantic error: {:?}", err),
     };
 
-    let _ = std::fs::write("semantic.txt", format!("{:#?}", semantic_module));
+    std::fs::write("semantic.txt", format!("{:#?}", semantic_module))
+        .expect("Failed to write semantic.txt");
 
     let codegen = ModuleCodegen::default();
     let llvm_module = match codegen.build_module(semantic_module, "main") {

@@ -14,12 +14,12 @@ pub enum LValue {
 #[derive(Debug, Clone)]
 pub enum Expression {
     LValue(LValue),
+    BooleanLiteral(bool),
     IntegerLiteral(u64, IntTy),
     FloatLiteral(f64, FloatTy),
-    BooleanLiteral(bool),
-    UnaryOperation(UnaryOperator, Box<Expression>),
     FunctionCall(FunctionCall),
     Assignment(LValue, Box<Expression>),
+    UnaryOperation(UnaryOperator, Box<Expression>),
     BinaryOperation(Box<Expression>, BinaryOperator, Box<Expression>),
     Cast(Box<Expression>, Type),
 }

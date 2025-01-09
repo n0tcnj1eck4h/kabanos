@@ -381,11 +381,11 @@ where
         use BitwiseOp::*;
         let builder = &self.builder;
         Ok(match op {
-            BitAnd => builder.build_and(l, r, "and")?,
-            BitOr => builder.build_or(l, r, "or")?,
-            BitXor => builder.build_xor(l, r, "xor")?,
-            BitLeft => builder.build_left_shift(l, r, "lshift")?,
-            BitRight => builder.build_right_shift(l, r, false, "rshift")?,
+            And => builder.build_and(l, r, "and")?,
+            Or => builder.build_or(l, r, "or")?,
+            Xor => builder.build_xor(l, r, "xor")?,
+            ShiftLeft => builder.build_left_shift(l, r, "lshift")?,
+            ShiftRight => builder.build_right_shift(l, r, false, "rshift")?,
         })
     }
 
@@ -396,8 +396,8 @@ where
         r: IntValue<'ctx>,
     ) -> CodegenResult<IntValue<'ctx>> {
         Ok(match op {
-            LogicOp::LogicAnd => self.builder.build_and(l, r, "and")?,
-            LogicOp::LogicOr => self.builder.build_or(l, r, "or")?,
+            LogicOp::And => self.builder.build_and(l, r, "and")?,
+            LogicOp::Or => self.builder.build_or(l, r, "or")?,
         })
     }
 }

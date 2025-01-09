@@ -12,17 +12,17 @@ pub enum BinaryOperator {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LogicOp {
-    LogicAnd,
-    LogicOr,
+    And,
+    Or,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum BitwiseOp {
-    BitAnd,
-    BitOr,
-    BitXor,
-    BitLeft,
-    BitRight,
+    ShiftRight,
+    ShiftLeft,
+    And,
+    Xor,
+    Or,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -55,18 +55,18 @@ impl TryFrom<Operator> for BinaryOperator {
             Operator::LessOrEqual => Comparaison(ComparaisonOp::LessOrEqual),
             Operator::GreaterOrEqual => Comparaison(ComparaisonOp::GreaterOrEqual),
             Operator::NotEqual => Comparaison(ComparaisonOp::NotEqual),
-            Operator::Add => Arithmetic(ArithmeticOp::Add),
+            Operator::Plus => Arithmetic(ArithmeticOp::Add),
             Operator::Minus => Arithmetic(ArithmeticOp::Subtract),
             Operator::Asterisk => Arithmetic(ArithmeticOp::Multiply),
             Operator::Divide => Arithmetic(ArithmeticOp::Divide),
             Operator::Modulo => Arithmetic(ArithmeticOp::Modulo),
-            Operator::Ampersand => Bitwise(BitwiseOp::BitAnd),
-            Operator::Pipe => Bitwise(BitwiseOp::BitOr),
-            Operator::Caret => Bitwise(BitwiseOp::BitXor),
-            Operator::LeftShift => Bitwise(BitwiseOp::BitLeft),
-            Operator::RightShift => Bitwise(BitwiseOp::BitRight),
-            Operator::LogicAnd => Logic(LogicOp::LogicAnd),
-            Operator::LogicOr => Logic(LogicOp::LogicOr),
+            Operator::Ampersand => Bitwise(BitwiseOp::And),
+            Operator::Pipe => Bitwise(BitwiseOp::Or),
+            Operator::Caret => Bitwise(BitwiseOp::Xor),
+            Operator::LeftShift => Bitwise(BitwiseOp::ShiftLeft),
+            Operator::RightShift => Bitwise(BitwiseOp::ShiftRight),
+            Operator::LogicAnd => Logic(LogicOp::And),
+            Operator::LogicOr => Logic(LogicOp::Or),
             _ => return Err(SemanticError::NotBinOp(value)),
         })
     }

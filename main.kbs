@@ -1,23 +1,15 @@
 extern fn putchar(i32 c): i32;
 
 fn main(): i32 {
-  let i: i32 = -~(!true) as i32;
-  let gigapointer: *i32 = &*&i;
-  some_ptr_fn(*gigapointer);
-
-  let pooppointer: ***i32;
-  some_ptr_fn(pooppointer);
+  print_ascii();
+  putchar('\n');
   return 0;
 }
 
-fn some_ptr_fn(i32 superduper) {
-  return;
-}
-
 fn print_ascii(): i32 {
-  let i: i32 = 0;
+  let i: i32 = '0';
 
-  while 256 > i {
+  while i < 256 {
     putchar(i);
     i = i + 1;
   }

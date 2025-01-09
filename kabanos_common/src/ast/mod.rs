@@ -9,9 +9,9 @@ use crate::{
 #[derive(Debug)]
 pub struct Module {
     pub imports: Vec<Import>,
-    pub fn_declarations: Vec<FunctionPrototype>,
-    pub fn_definitions: Vec<FunctionDefinition>,
-    pub ty_definitions: Vec<Composite>,
+    pub fn_decls: Vec<FunctionPrototype>,
+    pub fn_defs: Vec<FunctionDefinition>,
+    pub ty_defs: Vec<Composite>,
     pub globals: Vec<GlobalVariableDefintion>,
 }
 

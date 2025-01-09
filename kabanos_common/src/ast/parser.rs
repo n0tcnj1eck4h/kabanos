@@ -70,11 +70,11 @@ where
     }
 
     pub fn module(&mut self) -> Result<Module, ParsingError> {
-        let mut fn_definitions = Vec::new();
-        let mut fn_declarations = Vec::new();
+        let mut fn_defs = Vec::new();
+        let mut fn_decls = Vec::new();
         let mut imports = Vec::new();
         let mut globals = Vec::new();
-        let mut ty_definitions = Vec::new();
+        let mut ty_defs = Vec::new();
 
         while *self.token == Token::Keyword(Keyword::IMPORT) {
             imports.push(self.import()?);
@@ -82,16 +82,10 @@ where
 
         while self.next_token.is_some() {
             match *self.token {
-                Token::Keyword(Keyword::FUNCTION) => {
-                    fn_definitions.push(self.function_definition()?);
-                }
+                Token::Keyword(Keyword::FUNCTION) => fn_defs.push(self.fn_def()?),
                 Token::Keyword(Keyword::GLOBAL) => globals.push(self.global_var()?),
-                Token::Keyword(Keyword::EXTERN) => {
-                    fn_declarations.push(self.function_declaration()?);
-                }
-                Token::Keyword(Keyword::STRUCT) => {
-                    ty_definitions.push(self.structure()?);
-                }
+                Token::Keyword(Keyword::EXTERN) => fn_decls.push(self.fn_decl()?),
+                Token::Keyword(Keyword::STRUCT) => ty_defs.push(self.structure()?),
                 _ => self.error()?,
             }
         }
@@ -99,9 +93,9 @@ where
         if let Err(ParsingError::UnexpectedEOF(_)) = self.advance() {
             Ok(Module {
                 imports,
-                fn_declarations,
-                fn_definitions,
-                ty_definitions,
+                fn_decls,
+                fn_defs,
+                ty_defs,
                 globals,
             })
         } else {
@@ -458,7 +452,7 @@ where
         expr
     }
 
-    fn function_definition(&mut self) -> Result<FunctionDefinition, ParsingError> {
+    fn fn_def(&mut self) -> Result<FunctionDefinition, ParsingError> {
         let prototype = self.function_prototype()?;
         if *self.token == '{' {
             let body = self.fn_body()?;
@@ -468,15 +462,15 @@ where
         self.error()
     }
 
-    fn function_declaration(&mut self) -> Result<FunctionPrototype, ParsingError> {
+    fn fn_decl(&mut self) -> Result<FunctionPrototype, ParsingError> {
         self.advance()?;
         if *self.token == Keyword::FUNCTION {
             let prototype = self.function_prototype()?;
             self.expect(Token::Atom(';'))?;
-            Ok(prototype)
-        } else {
-            self.error()
+            return Ok(prototype);
         }
+
+        self.error()
     }
 
     fn function_prototype(&mut self) -> Result<FunctionPrototype, ParsingError> {
@@ -491,27 +485,32 @@ where
             None
         };
 
-        if let Token::Identifier(ref mut name) = *self.token {
-            let name = mem::take(name);
-            self.advance()?;
-            if *self.token == '(' {
-                let parameters = self.param_list()?;
-                let mut return_type = None;
-                if *self.token == ':' {
-                    self.advance()?;
-                    return_type = Some(self.ty()?);
-                }
-                span = self.token.get_span().join(span);
-                return Ok(FunctionPrototype {
-                    name,
-                    parameters,
-                    calling_convention,
-                    return_type,
-                    span,
-                });
-            }
+        let Token::Identifier(ref mut name) = *self.token else {
+            return self.error();
+        };
+
+        let name = mem::take(name);
+        self.advance()?;
+
+        if *self.token != '(' {
+            return self.error();
         }
 
-        self.error()
+        let parameters = self.param_list()?;
+
+        let mut return_type = None;
+        if *self.token == ':' {
+            self.advance()?;
+            return_type = Some(self.ty()?);
+        }
+
+        span = self.token.get_span().join(span);
+        return Ok(FunctionPrototype {
+            name,
+            parameters,
+            calling_convention,
+            return_type,
+            span,
+        });
     }
 }

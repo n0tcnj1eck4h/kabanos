@@ -78,6 +78,7 @@ where
 
         let ch = self.ch?;
 
+        // Skip comments
         if ch == '#' {
             self.advance();
             while let Some(ch) = self.ch {
@@ -167,39 +168,33 @@ where
         }
 
         self.advance();
-        let ch2 = self.ch;
-
+        use Operator::*;
         #[rustfmt::skip]
-        let op = match (ch, ch2) {
-            ('=', Some('=')) => { self.advance(); Some(Operator::Equal) }
-            ('<', Some('=')) => { self.advance(); Some(Operator::LessOrEqual) }
-            ('>', Some('=')) => { self.advance(); Some(Operator::GreaterOrEqual) }
-            ('>', Some('>')) => { self.advance(); Some(Operator::RightShift) }
-            ('<', Some('<')) => { self.advance(); Some(Operator::LeftShift) }
-            ('!', Some('=')) => { self.advance(); Some(Operator::NotEqual) }
-            ('&', Some('&')) => { self.advance(); Some(Operator::LogicAnd) }
-            ('|', Some('|')) => { self.advance(); Some(Operator::LogicOr) }
-            (':', Some(':')) => { self.advance(); Some(Operator::ScopeResolution) }
-            ('+', _) => Some(Operator::Add),
-            ('-', _) => Some(Operator::Minus),
-            ('*', _) => Some(Operator::Asterisk),
-            ('/', _) => Some(Operator::Divide),
-            ('%', _) => Some(Operator::Modulo),
-            ('&', _) => Some(Operator::Ampersand),
-            ('|', _) => Some(Operator::Pipe),
-            ('^', _) => Some(Operator::Caret),
-            ('~', _) => Some(Operator::Tilde),
-            ('=', _) => Some(Operator::Assign),
-            ('<', _) => Some(Operator::Less),
-            ('>', _) => Some(Operator::Greater),
-            ('!', _) => Some(Operator::Exclamation),
-            _ => None,
+        let op = match (ch, self.ch) {
+            ('=', Some('=')) => { self.advance(); Equal }
+            ('<', Some('=')) => { self.advance(); LessOrEqual }
+            ('>', Some('=')) => { self.advance(); GreaterOrEqual }
+            ('>', Some('>')) => { self.advance(); RightShift }
+            ('<', Some('<')) => { self.advance(); LeftShift }
+            ('!', Some('=')) => { self.advance(); NotEqual }
+            ('&', Some('&')) => { self.advance(); LogicAnd }
+            ('|', Some('|')) => { self.advance(); LogicOr }
+            (':', Some(':')) => { self.advance(); ScopeResolution }
+            ('+', _) => Plus,
+            ('-', _) => Minus,
+            ('*', _) => Asterisk,
+            ('/', _) => Divide,
+            ('%', _) => Modulo,
+            ('&', _) => Ampersand,
+            ('|', _) => Pipe,
+            ('^', _) => Caret,
+            ('~', _) => Tilde,
+            ('=', _) => Assign,
+            ('<', _) => Less,
+            ('>', _) => Greater,
+            ('!', _) => Exclamation,
+            _ => return self.token(Token::Atom(ch)),
         };
-
-        if let Some(op) = op {
-            self.token(Token::Operator(op))
-        } else {
-            self.token(Token::Atom(ch))
-        }
+        self.token(Token::Operator(op))
     }
 }
