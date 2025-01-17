@@ -174,7 +174,7 @@ where
 
     fn ty(&mut self) -> Result<Type, ParsingError> {
         let mut pointers = 0;
-        while let Token::Operator(Operator::Asterisk) = *self.token {
+        while let Token::Operator(Operator::Ampersand) = *self.token {
             pointers += 1;
             self.advance()?;
         }
