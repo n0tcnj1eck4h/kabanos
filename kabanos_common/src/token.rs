@@ -129,7 +129,7 @@ impl Operator {
            Operator::Asterisk        => 100,
            Operator::Divide          => 100,
            Operator::Modulo          => 100,
-           Operator::Plus             => 80,
+           Operator::Plus            => 80,
            Operator::Minus           => 80,
            Operator::RightShift      => 60,
            Operator::LeftShift       => 60,

@@ -437,8 +437,8 @@ where
             }
 
             let span = lhs.get_span().join(rhs.get_span());
-            let kind = Expression::BinaryOp(Box::new(lhs), op, Box::new(rhs));
-            lhs = kind.with_span(span);
+            let expr = Expression::BinaryOp(Box::new(lhs), op, Box::new(rhs));
+            lhs = expr.with_span(span);
         }
 
         Ok(lhs)
@@ -448,7 +448,6 @@ where
         self.expect(Token::Atom('('))?;
         let expr = self.expression();
         self.expect(Token::Atom(')'))?;
-
         expr
     }
 
