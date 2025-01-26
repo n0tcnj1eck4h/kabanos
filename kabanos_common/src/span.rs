@@ -38,7 +38,7 @@ pub struct Position {
 
 impl Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.row, self.col)
+        write!(f, "{}:{}", self.row + 1, self.col + 1)
     }
 }
 
@@ -117,7 +117,8 @@ impl<T: Display> Display for Spanned<T> {
         write!(
             f,
             " on line {}, column {}",
-            self.span.start.row, self.span.start.col
+            self.span.start.row + 1,
+            self.span.start.col + 1
         )
     }
 }

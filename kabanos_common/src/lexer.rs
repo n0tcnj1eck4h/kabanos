@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use crate::{
     span::{Span, Spanned, WithSpan},
@@ -10,6 +10,16 @@ pub enum LexerError {
     UnexpectedEOF,
     CharTooLong,
     BadEscape,
+}
+
+impl Display for LexerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LexerError::UnexpectedEOF => write!(f, "Unexpected end of file"),
+            LexerError::CharTooLong => write!(f, "Too many characters in a char literal"),
+            LexerError::BadEscape => write!(f, "Bad escape sequence"),
+        }
+    }
 }
 
 pub struct Lexer<T> {

@@ -1,0 +1,4 @@
+fn main(): i32 {
+  import something that does not belong here;
+  return 0;
+}

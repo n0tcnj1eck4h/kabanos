@@ -11,7 +11,7 @@ fn main() {
     let tokens: Result<Vec<_>, _> = lexer.collect();
     let tokens = match tokens {
         Ok(tokens) => tokens,
-        Err(err) => return println!("Lexing error: {:?}", err),
+        Err(err) => return println!("Lexing error: {}", err),
     };
 
     let mut parser = Parser::new(tokens.into_iter()).expect("Stream is empty");
@@ -24,7 +24,11 @@ fn main() {
 
     let semantic_module = match Module::build_module(ast) {
         Ok(semantic_module) => semantic_module,
-        Err(err) => return println!("Semantic error: {:?}", err),
+        Err(err) => {
+            return err
+                .into_iter()
+                .for_each(|err| println!("Semantic error: {}", err))
+        }
     };
 
     std::fs::write("semantic.txt", format!("{:#?}", semantic_module))
