@@ -52,11 +52,6 @@ fn pretty_print_err(err: impl Display + HasSpan, code: &str) {
     let span = err.get_span();
     let start_line = span.start.row as isize;
     let end_line = span.end.row as isize;
-    let msg = err.to_string();
-    println!(
-        "\\begin{{lstlisting}}[caption={{{}}}, label={{lst:{}}}]",
-        msg, "err000"
-    );
     for (i, line) in code.lines().enumerate() {
         let i = i as isize;
         if start_line - i < 2 {
@@ -80,5 +75,4 @@ fn pretty_print_err(err: impl Display + HasSpan, code: &str) {
             println!("{}", err);
         }
     }
-    println!("\\end{{lstlisting}}");
 }

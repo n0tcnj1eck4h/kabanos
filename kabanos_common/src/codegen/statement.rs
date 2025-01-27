@@ -69,10 +69,6 @@ where
         variable_id: VariableID,
         body: Vec<semantic::Statement>,
     ) -> Result<(), super::error::IRBuilerError> {
-        let block = self.context.append_basic_block(self.function, "block");
-        let merge_block = self.context.append_basic_block(self.function, "merge");
-        self.builder.build_unconditional_branch(block)?;
-        self.builder.position_at_end(block);
         let variable = self.symbol_table.get_variable(variable_id);
         let ty = variable.ty.to_llvm_type(self.context);
         let ptr = self.builder.build_alloca(ty, &variable.identifier)?;
@@ -80,8 +76,6 @@ where
         for statement in body {
             self.build_statement(statement)?;
         }
-        self.builder.build_unconditional_branch(merge_block)?;
-        self.builder.position_at_end(merge_block);
         Ok(())
     }
 

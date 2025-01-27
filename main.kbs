@@ -8,13 +8,10 @@ fn main(): i32 {
 
 fn print_ascii(): i32 {
   let i: i32 = '0';
-  let b: &i32 = &i;
-
   while i < 256 {
     putchar(i);
     i = i + 1;
   }
-
   return 0;
 }
 
