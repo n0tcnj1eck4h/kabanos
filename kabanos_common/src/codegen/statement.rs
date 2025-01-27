@@ -32,9 +32,9 @@ where
     'a: 'ctx,
 {
     pub fn build_statement(&mut self, stmt: semantic::Statement) -> CodegenResult {
-        use semantic::Statement::*;
+        use semantic::Statement;
         match stmt {
-            Conditional(condition, body, body_else) => {
+            Statement::Conditional(condition, body, body_else) => {
                 let condition = self.build_expression(condition)?;
 
                 let then_block = self.context.append_basic_block(self.function, "then");
@@ -64,7 +64,7 @@ where
                 self.builder.position_at_end(merge_block);
                 Ok(())
             }
-            Loop(condition, body) => {
+            Statement::Loop(condition, body) => {
                 let loop_block = self.context.append_basic_block(self.function, "loop");
                 let body_block = self.context.append_basic_block(self.function, "body");
                 let continue_block = self.context.append_basic_block(self.function, "continue");
@@ -89,7 +89,7 @@ where
                 self.builder.position_at_end(continue_block);
                 Ok(())
             }
-            Block(Scope { variable_id, body }) => {
+            Statement::Scope(Scope { variable_id, body }) => {
                 let variable = self.symbol_table.get_variable(variable_id);
                 let ty = variable.ty.to_llvm_type(self.context);
 
@@ -100,7 +100,7 @@ where
                 }
                 Ok(())
             }
-            Return(expression) => {
+            Statement::Return(expression) => {
                 if let Some(expression) = expression {
                     let ret_value = self.build_expression(expression)?;
                     self.builder.build_return(Some(&ret_value))?;
@@ -109,11 +109,11 @@ where
                 }
                 Ok(())
             }
-            Expression(expression) => {
+            Statement::Expression(expression) => {
                 self.build_expression(expression)?;
                 Ok(())
             }
-            VoidFunctionCall(call) => {
+            Statement::VoidFunctionCall(call) => {
                 self.build_function_call(call)?;
                 Ok(())
             }

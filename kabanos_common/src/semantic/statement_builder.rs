@@ -18,11 +18,14 @@ pub struct Analyzer<'a, 'b> {
 }
 
 impl Analyzer<'_, '_> {
-    pub fn build_statements<I>(&mut self, iter: I) -> Result<Vec<Statement>, Spanned<SemanticError>>
+    pub fn build_statements<I>(
+        &mut self,
+        stmt_iter: I,
+    ) -> Result<Vec<Statement>, Spanned<SemanticError>>
     where
         I: IntoIterator<Item = ast::Statement>,
     {
-        let mut iter = iter.into_iter();
+        let mut iter = stmt_iter.into_iter();
         let mut statements = Vec::new();
 
         while let Some(statement) = iter.next() {
@@ -40,7 +43,7 @@ impl Analyzer<'_, '_> {
                     }
                 }
                 ast::Statement::Expression(expr) => {
-                    // Treat void funtion calls as statements
+                    // Treat void function calls as statements
                     let span = expr.get_span();
                     let expr = expr.unwrap();
                     if let ast::Expression::FunctionCall(name, args) = &expr {
@@ -58,18 +61,15 @@ impl Analyzer<'_, '_> {
                                 return Err(SemanticError::WrongArgumentCount.with_span(span));
                             }
 
-                            let args: Result<Vec<_>, _> = params
+                            let args = params
                                 .iter()
                                 .zip(args.iter())
                                 .map(|(param, expr)| {
                                     self.build_expression(expr.clone(), Some(&param.ty))
                                 })
-                                .collect();
+                                .collect::<Result<Vec<_>, _>>()?;
 
-                            let call = FunctionCall {
-                                id: fn_id,
-                                args: args?,
-                            };
+                            let call = FunctionCall { id: fn_id, args };
 
                             statements.push(Statement::VoidFunctionCall(call));
                             continue;
@@ -86,9 +86,9 @@ impl Analyzer<'_, '_> {
                     statements.push(Statement::Loop(expr, s));
                 }
                 ast::Statement::Block(s) => {
-                    let old_len = self.stack.len();
+                    // let old_len = self.stack.len();
                     let s = self.build_statements(s)?;
-                    self.stack.truncate(old_len);
+                    // self.stack.truncate(old_len);
                     statements.extend(s);
                 }
                 ast::Statement::Return(expr) => match (expr, self.expected_return_ty) {
@@ -135,7 +135,7 @@ impl Analyzer<'_, '_> {
                         body,
                     };
 
-                    statements.push(Statement::Block(scope));
+                    statements.push(Statement::Scope(scope));
                     break;
                 }
             }

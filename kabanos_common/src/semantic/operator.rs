@@ -46,9 +46,9 @@ pub enum ComparaisonOp {
 
 impl TryFrom<Operator> for BinaryOperator {
     type Error = SemanticError;
-    fn try_from(value: Operator) -> Result<Self, Self::Error> {
+    fn try_from(op: Operator) -> Result<Self, Self::Error> {
         use BinaryOperator::*;
-        Ok(match value {
+        Ok(match op {
             Operator::Equal => Comparaison(ComparaisonOp::Equal),
             Operator::Less => Comparaison(ComparaisonOp::Less),
             Operator::Greater => Comparaison(ComparaisonOp::Greater),
@@ -67,7 +67,7 @@ impl TryFrom<Operator> for BinaryOperator {
             Operator::RightShift => Bitwise(BitwiseOp::ShiftRight),
             Operator::LogicAnd => Logic(LogicOp::And),
             Operator::LogicOr => Logic(LogicOp::Or),
-            _ => return Err(SemanticError::NotBinOp(value)),
+            _ => return Err(SemanticError::NotBinOp(op)),
         })
     }
 }

@@ -78,15 +78,14 @@ pub enum Expression {
 impl Expression {
     pub fn is_strongly_typed(&self) -> bool {
         match self {
-            Expression::IntegerLiteral(_)
-            | Expression::FloatLiteral(_)
-            | Expression::BooleanLiteral(_) => false,
+            Expression::IntegerLiteral(_) | Expression::FloatLiteral(_) => false,
 
             Expression::UnaryOperation(_, expr) => expr.is_strongly_typed(),
             Expression::BinaryOp(l, _, r) => l.is_strongly_typed() || r.is_strongly_typed(),
 
             Expression::FunctionCall(..)
             | Expression::Cast(..)
+            | Expression::BooleanLiteral(_)
             | Expression::Identifier(_)
             | Expression::StringLiteral(_) => true,
         }

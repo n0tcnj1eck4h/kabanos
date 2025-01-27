@@ -70,8 +70,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<Expression, SemanticError> {
         let ty: Type = ty.try_into()?;
         let expr = self.build_inner_expression(expr.unwrap(), None)?;
-        let kind = Expression::Cast(Box::new(expr), ty.clone());
-        Ok(kind)
+        Ok(Expression::Cast(Box::new(expr), ty.clone()))
     }
 
     fn build_float_literal(
@@ -90,8 +89,7 @@ impl Analyzer<'_, '_> {
             }
         };
 
-        let kind = Expression::FloatLiteral(f, float_type);
-        Ok(kind)
+        Ok(Expression::FloatLiteral(f, float_type))
     }
 
     fn build_identifier(&self, ident: String) -> Result<Expression, SemanticError> {
@@ -125,12 +123,10 @@ impl Analyzer<'_, '_> {
             };
 
             let expr = self.build_inner_expression(expr.unwrap(), Some(&prefered_operand_type))?;
-            let kind = Expression::UnaryOperation(operator, Box::new(expr));
-            Ok(kind)
+            Ok(Expression::UnaryOperation(operator, Box::new(expr)))
         } else {
             let expr = self.build_inner_expression(expr.unwrap(), None)?;
-            let kind = Expression::UnaryOperation(operator, Box::new(expr));
-            Ok(kind)
+            Ok(Expression::UnaryOperation(operator, Box::new(expr)))
         }
     }
 
@@ -139,31 +135,26 @@ impl Analyzer<'_, '_> {
         name: String,
         args: Vec<Spanned<ast::Expression>>,
     ) -> Result<Expression, SemanticError> {
-        let fn_id = self
+        let id = self
             .symbol_table
             .get_function_id_by_name(&name)
             .ok_or(SemanticError::Undeclared(name))?;
 
-        let fn_decl = self.symbol_table.get_function(fn_id);
+        let fn_decl = self.symbol_table.get_function(id);
         fn_decl.ty.as_ref().ok_or(SemanticError::VoidOperation)?;
 
         if fn_decl.params.len() != args.len() {
             return Err(SemanticError::WrongArgumentCount);
         }
 
-        let args: Result<Vec<_>, _> = args
+        let args = args
             .into_iter()
             .zip(&fn_decl.params)
             .map(|(arg, param)| self.build_inner_expression(arg.unwrap(), Some(&param.ty)))
-            .collect();
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let call = FunctionCall {
-            id: fn_id,
-            args: args?,
-        };
-
-        let kind = Expression::FunctionCall(call);
-        Ok(kind)
+        let call = FunctionCall { id, args };
+        Ok(Expression::FunctionCall(call))
     }
 
     fn build_int_literal(
@@ -206,8 +197,10 @@ impl Analyzer<'_, '_> {
             let var = self.symbol_table.get_variable(variable_id);
             let right = self.build_inner_expression(right.unwrap(), Some(&var.ty))?;
 
-            let kind = Expression::Assignment(LValue::LocalVar(variable_id), Box::new(right));
-            return Ok(kind);
+            return Ok(Expression::Assignment(
+                LValue::LocalVar(variable_id),
+                Box::new(right),
+            ));
         }
 
         let binop: BinaryOperator = op.try_into()?;

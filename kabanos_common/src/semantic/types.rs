@@ -44,9 +44,9 @@ impl TryFrom<ast::Type> for Type {
     type Error = SemanticError;
 
     #[rustfmt::skip]
-    fn try_from(value: ast::Type) -> Result<Self, Self::Error> {
+    fn try_from(ast_ty: ast::Type) -> Result<Self, Self::Error> {
         use IntSizes::*;
-        let mut ty = match value.name.as_str() {
+        let mut ty = match ast_ty.name.as_str() {
             "bool" => Type::Bool,                                  
             "f32"  => Type::Float(FloatTy::F32),                  
             "f64"  => Type::Float(FloatTy::F64),                  
@@ -58,10 +58,10 @@ impl TryFrom<ast::Type> for Type {
             "u32"  => Type::Int(IntTy { bits: I32, sign: false, }),     
             "i64"  => Type::Int(IntTy { bits: I64, sign: true,  }),     
             "u64"  => Type::Int(IntTy { bits: I64, sign: false, }),     
-            _ => return Err(SemanticError::NotPrimitive(value.name)),
+            _ => return Err(SemanticError::NotPrimitive(ast_ty.name)),
         };
 
-        for _ in 0..value.pointers {
+        for _ in 0..ast_ty.pointers {
             ty = Type::Ptr(Box::new(ty));
         }
 

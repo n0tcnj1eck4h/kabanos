@@ -54,5 +54,5 @@ pub enum Statement {
     Loop(Expression, Vec<Statement>),
     Return(Option<Expression>),
     Expression(Expression),
-    Block(Scope),
+    Scope(Scope),
 }

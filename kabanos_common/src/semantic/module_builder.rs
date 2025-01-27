@@ -13,13 +13,13 @@ impl Module {
         let mut errors = Vec::new();
 
         for s in ast_module.fn_decls {
-            if let Err(err) = module.build_delaration(s) {
+            if let Err(err) = module.build_declaration(s) {
                 errors.push(err);
             }
         }
 
         for s in ast_module.fn_defs.iter() {
-            if let Err(err) = module.build_delaration(s.prototype.clone()) {
+            if let Err(err) = module.build_declaration(s.prototype.clone()) {
                 errors.push(err);
             }
         }
@@ -37,12 +37,12 @@ impl Module {
         }
     }
 
-    fn build_delaration(
+    fn build_declaration(
         &mut self,
         s: ast::FunctionPrototype,
     ) -> Result<(), Spanned<SemanticError>> {
         let span = s.span;
-        let fn_decl = self.build_declaration(s)?;
+        let fn_decl = self.build_prototype(s)?;
         self.symbol_table
             .declare_function(fn_decl)
             .map_err(|e| e.with_span(span))?;
@@ -54,7 +54,7 @@ impl Module {
         s: ast::FunctionDefinition,
     ) -> Result<(), Spanned<SemanticError>> {
         let span = s.prototype.span;
-        let declaration = self.build_declaration(s.prototype)?;
+        let declaration = self.build_prototype(s.prototype)?;
 
         let mut stack = Vec::new();
         let mut params = Vec::new();
@@ -67,13 +67,13 @@ impl Module {
             params.push(id);
         }
 
-        let mut statement_builder = Analyzer {
+        let mut analyzer = Analyzer {
             symbol_table: &mut self.symbol_table,
             expected_return_ty: declaration.ty.as_ref(),
             stack: &mut stack,
         };
 
-        let body = statement_builder.build_statements(s.body)?;
+        let body = analyzer.build_statements(s.body)?;
         let decl_id = self
             .symbol_table
             .get_function_id_by_decl(&declaration)
@@ -85,7 +85,7 @@ impl Module {
         Ok(())
     }
 
-    fn build_declaration(
+    fn build_prototype(
         &mut self,
         prototype: ast::FunctionPrototype,
     ) -> Result<FunctionDeclaration, Spanned<SemanticError>> {

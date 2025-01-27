@@ -28,6 +28,10 @@ impl SymbolTable {
         VariableID(self.variables.len() - 1)
     }
 
+    pub fn get_variable(&self, id: VariableID) -> &Variable {
+        self.variables.get(id.0).expect("Unexpected VariableID")
+    }
+
     pub fn declare_function(
         &mut self,
         fn_decl: FunctionDeclaration,
@@ -89,9 +93,5 @@ impl SymbolTable {
 
     pub fn get_function(&self, id: FunctionID) -> &FunctionDeclaration {
         self.fn_decls.get(id.0).expect("Unexpected FunctionID")
-    }
-
-    pub fn get_variable(&self, id: VariableID) -> &Variable {
-        self.variables.get(id.0).expect("Unexpected VariableID")
     }
 }
