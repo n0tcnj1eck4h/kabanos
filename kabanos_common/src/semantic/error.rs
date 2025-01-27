@@ -8,7 +8,6 @@ use super::{expression::Expression, operator::UnaryOperator, types::Type};
 pub enum SemanticError {
     NotBinOp(Operator),
     NotUnaryOp(Operator),
-    FunctionRedefinition(String),
     NotPrimitive(String),
     LValue(Expression),
     VoidOperation,
@@ -48,9 +47,6 @@ impl Display for SemanticError {
                 "Invalid unary operation {:?} on type {:?}",
                 unary_operator, type_kind
             ),
-            SemanticError::FunctionRedefinition(_) => {
-                write!(f, "Function redefined")
-            }
             SemanticError::WrongArgumentCount => {
                 write!(f, "Argument count in function call is incorrect")
             }
