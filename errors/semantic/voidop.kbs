@@ -1,0 +1,8 @@
+fn main(): i32 {
+  return voidfn();
+}
+
+fn voidfn() {
+  return;
+}
+

@@ -38,7 +38,7 @@ where
         Lexer { stream, ch, span }
     }
 
-    fn token(&mut self, kind: Token) -> Option<Result<Spanned<Token>, LexerError>> {
+    fn token(&mut self, kind: Token) -> Option<Result<Spanned<Token>, Spanned<LexerError>>> {
         let span = self.span;
         self.span.start = self.span.end;
         Some(Ok(kind.with_span(span)))
@@ -55,18 +55,23 @@ where
         self.ch.is_some()
     }
 
-    fn read_char(&mut self) -> Result<char, LexerError> {
-        let mut ch = self.ch.ok_or(LexerError::UnexpectedEOF)?;
+    fn read_char(&mut self) -> Result<char, Spanned<LexerError>> {
+        let mut ch = self
+            .ch
+            .ok_or(LexerError::UnexpectedEOF.with_span(self.span))?;
 
         if ch == '\\' {
             self.advance();
-            ch = match self.ch.ok_or(LexerError::UnexpectedEOF)? {
+            ch = match self
+                .ch
+                .ok_or(LexerError::UnexpectedEOF.with_span(self.span))?
+            {
                 '\\' => '\\',
                 'n' => '\n',
                 't' => '\t',
                 'r' => '\r',
                 '"' => '"',
-                _ => return Err(LexerError::BadEscape),
+                _ => return Err(LexerError::BadEscape.with_span(self.span)),
             }
         }
 
@@ -79,7 +84,7 @@ impl<T> Iterator for Lexer<T>
 where
     T: Iterator<Item = char>,
 {
-    type Item = Result<Spanned<Token>, LexerError>;
+    type Item = Result<Spanned<Token>, Spanned<LexerError>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while self.ch.map_or(false, char::is_whitespace) {
@@ -170,7 +175,7 @@ where
             };
 
             if self.ch != Some('\'') {
-                return Some(Err(LexerError::CharTooLong));
+                return Some(Err(LexerError::CharTooLong.with_span(self.span)));
             }
 
             self.advance();

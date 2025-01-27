@@ -45,7 +45,7 @@ impl Analyzer<'_, '_> {
             }
             ast::Expression::FunctionCall(name, args) => self.build_function_call(name, args),
             ast::Expression::StringLiteral(_) => {
-                panic!("String literals are not supported yet")
+                return Err(SemanticError::StringLiteral);
             }
             ast::Expression::Cast(expr, ty) => self.build_cast(*expr, ty),
         }?;

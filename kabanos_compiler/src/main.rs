@@ -1,7 +1,10 @@
+use std::fmt::Display;
+
 use kabanos_common::ast::parser::Parser;
 use kabanos_common::codegen::module::ModuleCodegen;
 use kabanos_common::lexer::Lexer;
 use kabanos_common::semantic::Module;
+use kabanos_common::span::HasSpan;
 
 fn main() {
     let filename = std::env::args_os().nth(1).expect("Bad usage");
@@ -11,13 +14,13 @@ fn main() {
     let tokens: Result<Vec<_>, _> = lexer.collect();
     let tokens = match tokens {
         Ok(tokens) => tokens,
-        Err(err) => return println!("Lexing error: {}", err),
+        Err(err) => return pretty_print_err(err, &contents),
     };
 
     let mut parser = Parser::new(tokens.into_iter()).expect("Stream is empty");
     let ast = match parser.module() {
         Ok(ast) => ast,
-        Err(err) => return println!("Syntax error: {}", err),
+        Err(err) => return pretty_print_err(err, &contents),
     };
 
     std::fs::write("ast.txt", format!("{:#?}", ast)).expect("Failed to write ast.txt");
@@ -27,7 +30,7 @@ fn main() {
         Err(err) => {
             return err
                 .into_iter()
-                .for_each(|err| println!("Semantic error: {}", err))
+                .for_each(|err| pretty_print_err(err, &contents))
         }
     };
 
@@ -43,4 +46,39 @@ fn main() {
     llvm_module
         .print_to_file("out.ll")
         .expect("Failed to write module to file");
+}
+
+fn pretty_print_err(err: impl Display + HasSpan, code: &str) {
+    let span = err.get_span();
+    let start_line = span.start.row as isize;
+    let end_line = span.end.row as isize;
+    let msg = err.to_string();
+    println!(
+        "\\begin{{lstlisting}}[caption={{{}}}, label={{lst:{}}}]",
+        msg, "err000"
+    );
+    for (i, line) in code.lines().enumerate() {
+        let i = i as isize;
+        if start_line - i < 2 {
+            println!("{}", line);
+        } else if i - end_line < 2 {
+            println!("{}", line);
+        }
+        if i == end_line {
+            let start_col = span.start.col as isize;
+            let end_col = span.end.col as isize;
+            for _ in 0..start_col {
+                print!(" ");
+            }
+            for _ in start_col..end_col {
+                print!("^");
+            }
+            println!();
+            for _ in 0..start_col {
+                print!(" ");
+            }
+            println!("{}", err);
+        }
+    }
+    println!("\\end{{lstlisting}}");
 }

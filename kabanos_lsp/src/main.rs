@@ -90,15 +90,21 @@ impl LanguageServer for KabanosLSPBackend {
 impl KabanosLSPBackend {
     async fn diagnose(&self, uri: Url, version: i32) {
         let text = self.code.lock().await;
+        let mut diagnostics = Vec::new();
 
         let lexer = Lexer::new(text.chars());
-        let tokens = lexer.filter_map(|f| f.ok());
+        let tokens = lexer.filter_map(|t| match t {
+            Ok(t) => Some(t),
+            Err(err) => {
+                diagnostics.push(err_to_diagnostic(err));
+                None
+            }
+        });
+
         let parser = Parser::new(tokens);
         let Some(mut parser) = parser else {
             return;
         };
-
-        let mut diagnostics = Vec::new();
 
         match parser.module() {
             Err(err) => {
