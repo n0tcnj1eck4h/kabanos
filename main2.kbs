@@ -1,0 +1,23 @@
+extern fn putchar(i32 c): i32;
+extern fn abort();
+
+fn main(): i32 {
+  let i: i32 = 1;
+  let i: i32 = 2;
+
+  {
+    let i: i32 = 3;
+    i = 4;
+  }
+
+  if i != 2 {
+    abort();
+  }
+  else {
+    putchar('o');
+    putchar('k');
+    putchar('\n');
+  }
+
+  return 0;
+}

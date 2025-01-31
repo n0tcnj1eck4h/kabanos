@@ -1,0 +1,20 @@
+extern fn abort();
+fn main(): i32 {
+
+  let x: i32 = 0.9999 as i32;
+  let y: bool = x as bool;
+  let f: f64 = y as f64;
+  if f != 0.0 {
+    abort();
+  }
+
+  if 0.001 as bool == false {
+    abort();
+  }
+
+  if 1.0 != true as f64  {
+    abort();
+  }
+
+  return 0;
+}

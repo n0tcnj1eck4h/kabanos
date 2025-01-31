@@ -1,5 +1,11 @@
 use std::fmt::Display;
+use std::path::Path;
 
+use colored::Colorize;
+use inkwell::targets::{
+    CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple,
+};
+use inkwell::OptimizationLevel;
 use kabanos_common::ast::parser::Parser;
 use kabanos_common::codegen::module::ModuleCodegen;
 use kabanos_common::lexer::Lexer;
@@ -10,6 +16,7 @@ fn main() {
     let filename = std::env::args_os().nth(1).expect("Bad usage");
     let contents = std::fs::read_to_string(filename).expect("Failed to read file");
 
+    println!("{}", "Lexing...".green());
     let lexer = Lexer::new(contents.chars());
     let tokens: Result<Vec<_>, _> = lexer.collect();
     let tokens = match tokens {
@@ -17,6 +24,7 @@ fn main() {
         Err(err) => return pretty_print_err(err, &contents),
     };
 
+    println!("{}", "Parsing...".green());
     let mut parser = Parser::new(tokens.into_iter()).expect("Stream is empty");
     let ast = match parser.module() {
         Ok(ast) => ast,
@@ -25,6 +33,7 @@ fn main() {
 
     std::fs::write("ast.txt", format!("{:#?}", ast)).expect("Failed to write ast.txt");
 
+    println!("{}", "Analyzing...".green());
     let semantic_module = match Module::build_module(ast) {
         Ok(semantic_module) => semantic_module,
         Err(err) => {
@@ -37,6 +46,7 @@ fn main() {
     std::fs::write("semantic.txt", format!("{:#?}", semantic_module))
         .expect("Failed to write semantic.txt");
 
+    println!("{}", "Emitting LLVM...".green());
     let codegen = ModuleCodegen::default();
     let llvm_module = match codegen.build_module(semantic_module, "main") {
         Ok(llvm_module) => llvm_module,
@@ -46,6 +56,29 @@ fn main() {
     llvm_module
         .print_to_file("out.ll")
         .expect("Failed to write module to file");
+
+    Target::initialize_x86(&InitializationConfig::default());
+    let opt = OptimizationLevel::Default;
+    let reloc = RelocMode::Default;
+    let model = CodeModel::Default;
+    let target = Target::from_name("x86-64").unwrap();
+    let target_machine = target
+        .create_target_machine(
+            &TargetTriple::create("x86_64-pc-linux-gnu"),
+            "generic",
+            "",
+            opt,
+            reloc,
+            model,
+        )
+        .unwrap();
+
+    println!("{}", "Compiling...".green());
+    target_machine
+        .write_to_file(&llvm_module, FileType::Object, Path::new("out.o"))
+        .expect("Failed to write object file");
+
+    println!("{}", "Done!".bold().green());
 }
 
 fn pretty_print_err(err: impl Display + HasSpan, code: &str) {
