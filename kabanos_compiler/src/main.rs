@@ -6,8 +6,8 @@ use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple,
 };
 use inkwell::OptimizationLevel;
+use kabanos_codegen::module::CodegenContext;
 use kabanos_common::ast::parser::Parser;
-use kabanos_common::codegen::module::CodegenContext;
 use kabanos_common::lexer::Lexer;
 use kabanos_common::semantic::Module;
 use kabanos_common::span::HasSpan;

@@ -413,10 +413,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d75a2a4b1b190afb6f5425f10f6a8f959d2ea0b9c2b1d79553551850539e4674"
 
 [[package]]
-name = "kabanos_common"
+name = "kabanos_codegen"
 version = "0.1.0"
 dependencies = [
  "inkwell",
+ "kabanos_common",
+]
+
+[[package]]
+name = "kabanos_common"
+version = "0.1.0"
+dependencies = [
  "thiserror 1.0.69",
 ]
 
@@ -426,6 +433,7 @@ version = "0.1.0"
 dependencies = [
  "colored",
  "inkwell",
+ "kabanos_codegen",
  "kabanos_common",
 ]
 

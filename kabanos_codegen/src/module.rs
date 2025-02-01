@@ -7,7 +7,7 @@ use inkwell::{
     values::{FunctionValue, PointerValue},
 };
 
-use crate::semantic::{self, symbol::VariableID};
+use kabanos_common::semantic::{self, symbol::VariableID};
 
 use super::{error::CodegenResult, statement::Codegen, types::DecayedType};
 

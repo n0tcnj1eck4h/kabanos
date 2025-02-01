@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
+members = [ "kabanos_codegen",
     "kabanos_common",
     "kabanos_compiler",
     "kabanos_lsp",

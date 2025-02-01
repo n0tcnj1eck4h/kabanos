@@ -1,19 +1,18 @@
 use std::collections::HashMap;
 
 use inkwell::{
+    FloatPredicate, IntPredicate,
     builder::Builder,
     context::Context,
     values::{BasicValueEnum, CallSiteValue, FloatValue, FunctionValue, IntValue, PointerValue},
-    FloatPredicate, IntPredicate,
 };
 
-use crate::semantic::{
-    self,
+use kabanos_common::semantic::{
+    self as semantic, FunctionCall, Scope,
     expression::{Expression, LValue},
     operator::{ArithmeticOp, BinaryOperator, BitwiseOp, ComparaisonOp, LogicOp, UnaryOperator},
     symbol::{FunctionID, SymbolTable, VariableID},
     types::{Type, TypeKind},
-    FunctionCall, Scope,
 };
 
 use super::{error::CodegenResult, types::DecayedType};

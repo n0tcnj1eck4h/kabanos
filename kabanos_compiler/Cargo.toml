@@ -6,5 +6,6 @@ default-run = "kabanos_compiler"
 
 [dependencies]
 kabanos_common = { path = "../kabanos_common"}
+kabanos_codegen = { path = "../kabanos_codegen" }
 inkwell = { version = "0.5.0", features = ["llvm18-0-prefer-dynamic"] }
 colored = "3.0.0"
