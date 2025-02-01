@@ -17,26 +17,36 @@ pub struct Analyzer<'a, 'b> {
     pub stack: &'a mut Vec<VariableID>,
 }
 
+pub enum ControlFlow {
+    Return,
+    Fallthrough,
+}
+
 impl Analyzer<'_, '_> {
     pub fn build_statements<I>(
         &mut self,
         stmt_iter: I,
-    ) -> Result<Vec<Statement>, Spanned<SemanticError>>
+    ) -> Result<(Vec<Statement>, ControlFlow), Spanned<SemanticError>>
     where
         I: IntoIterator<Item = ast::Statement>,
     {
         let mut iter = stmt_iter.into_iter();
         let mut statements = Vec::new();
+        let mut flow = ControlFlow::Fallthrough;
 
         while let Some(statement) = iter.next() {
             match statement {
                 ast::Statement::Conditional(expr, true_block, else_block) => {
                     let expr = self.build_expression(expr, Some(&Type::Bool))?;
 
-                    let true_block = self.build_statements(*true_block)?;
+                    let (true_block, true_flow) = self.build_statements(*true_block)?;
+                    flow = ControlFlow::Fallthrough;
 
                     if let Some(else_block) = else_block {
-                        let else_block = self.build_statements(*else_block)?;
+                        let (else_block, else_flow) = self.build_statements(*else_block)?;
+                        if let (ControlFlow::Return, ControlFlow::Return) = (else_flow, true_flow) {
+                            flow = ControlFlow::Return;
+                        }
                         statements.push(Statement::Conditional(expr, true_block, Some(else_block)));
                     } else {
                         statements.push(Statement::Conditional(expr, true_block, None));
@@ -79,33 +89,44 @@ impl Analyzer<'_, '_> {
                     statements.push(Statement::Expression(
                         self.build_expression(expr.with_span(span), None)?,
                     ));
+                    flow = ControlFlow::Fallthrough;
                 }
                 ast::Statement::Loop(expr, s) => {
                     let expr = self.build_expression(expr, Some(&Type::Bool))?;
-                    let s = self.build_statements(*s)?;
+                    let (s, clfow) = self.build_statements(*s)?;
+                    flow = clfow;
+                    if let ControlFlow::Return = flow {
+                        println!("Why would you make a loop that runs one");
+                    }
                     statements.push(Statement::Loop(expr, s));
                 }
                 ast::Statement::Block(s) => {
-                    // let old_len = self.stack.len();
-                    let s = self.build_statements(s)?;
-                    // self.stack.truncate(old_len);
+                    let (s, cflow) = self.build_statements(s)?;
+                    flow = cflow;
                     statements.extend(s);
                 }
-                ast::Statement::Return(expr) => match (expr, self.expected_return_ty) {
-                    (Some(expr), Some(expected_return_ty)) => {
-                        let expr = self.build_expression(expr, Some(expected_return_ty))?;
-                        statements.push(Statement::Return(Some(expr)));
-                    }
-                    (None, None) => {
-                        statements.push(Statement::Return(None));
-                    }
-                    _ => {
-                        return Err(SemanticError::ReturnTypeMismatch {
-                            expected: self.expected_return_ty.cloned(),
+                ast::Statement::Return(expr) => {
+                    match (expr, self.expected_return_ty) {
+                        (Some(expr), Some(expected_return_ty)) => {
+                            let expr = self.build_expression(expr, Some(expected_return_ty))?;
+                            statements.push(Statement::Return(Some(expr)));
                         }
-                        .with_span(Span::default()));
+                        (None, None) => {
+                            statements.push(Statement::Return(None));
+                        }
+                        _ => {
+                            return Err(SemanticError::ReturnTypeMismatch {
+                                expected: self.expected_return_ty.cloned(),
+                            }
+                            .with_span(Span::default()));
+                        }
                     }
-                },
+                    flow = ControlFlow::Return;
+                    if iter.next().is_some() {
+                        println!("oops someone left some statements after the return");
+                    }
+                    break;
+                }
                 ast::Statement::LocalVar(identifier, ty, expr) => {
                     let ast_ty =
                         ty.ok_or(SemanticError::ImplicitType.with_span(identifier.get_span()))?;
@@ -127,7 +148,9 @@ impl Analyzer<'_, '_> {
                         body.push(Statement::Expression(kind));
                     };
                     self.stack.push(symbol_id);
-                    body.extend(self.build_statements(iter)?.into_iter());
+                    let (stmts, cflow) = self.build_statements(iter)?;
+                    flow = cflow;
+                    body.extend(stmts.into_iter());
                     self.stack.pop();
 
                     let scope = Scope {
@@ -139,9 +162,13 @@ impl Analyzer<'_, '_> {
                     break;
                 }
             }
+
+            if let ControlFlow::Return = flow {
+                break;
+            }
         }
 
-        Ok(statements)
+        Ok((statements, flow))
     }
 }
 

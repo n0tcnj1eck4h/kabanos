@@ -1,5 +1,8 @@
 use super::{
-    error::SemanticError, statement_builder::Analyzer, symbol::Variable, types::Type,
+    error::SemanticError,
+    statement_builder::{Analyzer, ControlFlow},
+    symbol::Variable,
+    types::Type,
     FunctionDeclaration, FunctionDefinition, FunctionParam, Module,
 };
 use crate::{
@@ -73,7 +76,10 @@ impl Module {
             stack: &mut stack,
         };
 
-        let body = analyzer.build_statements(s.body)?;
+        let (body, ControlFlow::Return) = analyzer.build_statements(s.body)? else {
+            return Err(SemanticError::MissingReturn.with_span(span));
+        };
+
         let decl_id = self
             .symbol_table
             .get_function_id_by_decl(&declaration)

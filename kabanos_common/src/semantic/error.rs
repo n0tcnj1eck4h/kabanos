@@ -21,6 +21,7 @@ pub enum SemanticError {
     InvalidBinOp,
     ImplicitType,
     StringLiteral,
+    MissingReturn,
 }
 
 impl Display for SemanticError {
@@ -57,6 +58,7 @@ impl Display for SemanticError {
                 write!(f, "Implicit variable types are not supported")
             }
             SemanticError::StringLiteral => write!(f, "String literals are not supported"),
+            SemanticError::MissingReturn => write!(f, "Missing return"),
         }
     }
 }
