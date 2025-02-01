@@ -128,35 +128,52 @@ impl Analyzer<'_, '_> {
                     break;
                 }
                 ast::Statement::LocalVar(identifier, ty, expr) => {
-                    let ast_ty =
-                        ty.ok_or(SemanticError::ImplicitType.with_span(identifier.get_span()))?;
-
-                    let ty: Type = ast_ty.try_into()?;
+                    let explicit_ty = match ty {
+                        Some(ast_ty) => Some(ast_ty.try_into()?),
+                        None => None,
+                    };
 
                     let identifier = identifier.unwrap();
-                    let symbol = Variable {
-                        identifier,
-                        ty: ty.clone(),
+                    let (expr, variable_id) = match (expr, explicit_ty) {
+                        (None, None) => {
+                            return Err(
+                                SemanticError::LocalVarMissingType.with_span(Span::default())
+                            );
+                        }
+                        (None, Some(ty)) => {
+                            let variable = Variable { identifier, ty };
+                            let variable_id = self.symbol_table.add_variable(variable);
+                            (None, variable_id)
+                        }
+                        (Some(expr), Some(ty)) => {
+                            let expr = self.build_expression(expr, Some(&ty))?;
+                            let variable = Variable { identifier, ty };
+                            let variable_id = self.symbol_table.add_variable(variable);
+                            (Some(expr), variable_id)
+                        }
+                        (Some(expr), None) => {
+                            let expr = self.build_expression(expr, None)?;
+                            let ty = self.symbol_table.get_expression_type(&expr);
+                            let variable = Variable { identifier, ty };
+                            let variable_id = self.symbol_table.add_variable(variable);
+                            (Some(expr), variable_id)
+                        }
                     };
-                    let symbol_id = self.symbol_table.add_variable(symbol);
 
                     let mut body = Vec::new();
                     if let Some(expr) = expr {
-                        let expr = self.build_expression(expr, Some(&ty))?;
                         let kind =
-                            Expression::Assignment(LValue::LocalVar(symbol_id), Box::new(expr));
+                            Expression::Assignment(LValue::LocalVar(variable_id), Box::new(expr));
                         body.push(Statement::Expression(kind));
-                    };
-                    self.stack.push(symbol_id);
+                    }
+
+                    self.stack.push(variable_id);
                     let (stmts, cflow) = self.build_statements(iter)?;
                     flow = cflow;
                     body.extend(stmts.into_iter());
                     self.stack.pop();
 
-                    let scope = Scope {
-                        variable_id: symbol_id,
-                        body,
-                    };
+                    let scope = Scope { variable_id, body };
 
                     statements.push(Statement::Scope(scope));
                     break;

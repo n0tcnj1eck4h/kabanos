@@ -22,6 +22,7 @@ pub enum SemanticError {
     ImplicitType,
     StringLiteral,
     MissingReturn,
+    LocalVarMissingType,
 }
 
 impl Display for SemanticError {
@@ -59,6 +60,10 @@ impl Display for SemanticError {
             }
             SemanticError::StringLiteral => write!(f, "String literals are not supported"),
             SemanticError::MissingReturn => write!(f, "Missing return"),
+            SemanticError::LocalVarMissingType => write!(
+                f,
+                "Local variable is missing an explicit type or initialization"
+            ),
         }
     }
 }
