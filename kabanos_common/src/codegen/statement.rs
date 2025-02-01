@@ -12,11 +12,11 @@ use crate::semantic::{
     expression::{Expression, LValue},
     operator::{ArithmeticOp, BinaryOperator, BitwiseOp, ComparaisonOp, LogicOp, UnaryOperator},
     symbol::{FunctionID, SymbolTable, VariableID},
-    types::{IntTy, Type},
+    types::{Type, TypeKind},
     FunctionCall, Scope,
 };
 
-use super::error::CodegenResult;
+use super::{error::CodegenResult, types::DecayedType};
 
 pub struct Codegen<'a, 'ctx> {
     pub context: &'ctx Context,
@@ -70,7 +70,8 @@ where
         body: Vec<semantic::Statement>,
     ) -> Result<(), super::error::IRBuilerError> {
         let variable = self.symbol_table.get_variable(variable_id);
-        let ty = variable.ty.to_llvm_type(self.context);
+        let ty: DecayedType = variable.ty.into();
+        let ty = ty.to_llvm_type(self.context);
         let ptr = self.builder.build_alloca(ty, &variable.identifier)?;
         self.variables.insert(variable_id, ptr);
         for statement in body {
@@ -146,12 +147,12 @@ where
             Expression::BooleanLiteral(b) => {
                 Ok(self.context.bool_type().const_int(b as u64, false).into())
             }
-            Expression::IntegerLiteral(int, ty) => Ok(Type::Int(ty)
+            Expression::IntegerLiteral(int, ty) => Ok(DecayedType::from(Type::from(ty))
                 .to_llvm_type(self.context)
                 .into_int_type()
                 .const_int(int, false)
                 .into()),
-            Expression::FloatLiteral(f, ty) => Ok(Type::Float(ty)
+            Expression::FloatLiteral(f, ty) => Ok(DecayedType::from(Type::from(ty))
                 .to_llvm_type(self.context)
                 .into_float_type()
                 .const_float(f)
@@ -176,16 +177,17 @@ where
         op: UnaryOperator,
         expr: Box<Expression>,
     ) -> Result<BasicValueEnum<'_>, super::error::IRBuilerError> {
-        let rhs_ty = self.symbol_table.get_expression_type(expr.as_ref());
+        let mut rhs_ty = self.symbol_table.get_expression_type(expr.as_ref());
         Ok(match op {
             UnaryOperator::Negative => {
                 let expr = self.build_expression(*expr)?;
-                match rhs_ty {
-                    Type::Int(_) => self
+                let decayed_ty: DecayedType = rhs_ty.into();
+                match decayed_ty {
+                    DecayedType::Int(_) => self
                         .builder
                         .build_int_neg(expr.into_int_value(), "int_neg")?
                         .into(),
-                    Type::Float(_) => self
+                    DecayedType::Float(_) => self
                         .builder
                         .build_float_neg(expr.into_float_value(), "fp_neg")?
                         .into(),
@@ -208,13 +210,12 @@ where
                 }
             },
             UnaryOperator::Deref => {
-                let Type::Ptr(ty) = self.symbol_table.get_expression_type(expr.as_ref()) else {
-                    panic!("Can't generate code for dereferencing non pointer types!");
-                };
+                rhs_ty.ptr_depth -= 1;
+                let pointee_ty: DecayedType = rhs_ty.into();
                 let expr = self.build_expression(*expr)?;
                 self.builder
                     .build_load(
-                        ty.to_llvm_type(&self.context),
+                        pointee_ty.to_llvm_type(&self.context),
                         expr.into_pointer_value(),
                         "deref",
                     )?
@@ -229,7 +230,8 @@ where
     ) -> Result<BasicValueEnum<'_>, super::error::IRBuilerError> {
         let variable = self.variables.get(&variable_id).expect("oops2");
         let symbol = self.symbol_table.get_variable(variable_id);
-        let ty = symbol.ty.to_llvm_type(self.context);
+        let ty: DecayedType = symbol.ty.into();
+        let ty = ty.to_llvm_type(self.context);
         Ok(self.builder.build_load(ty, *variable, &symbol.identifier)?)
     }
 
@@ -240,16 +242,20 @@ where
     ) -> Result<BasicValueEnum<'_>, super::error::IRBuilerError> {
         let from = self.symbol_table.get_expression_type(&expr);
         let value = self.build_expression(*expr)?;
-        let ty = to.to_llvm_type(self.context);
+
         if from == to {
             return Ok(value);
         }
-        use Type::*;
-        Ok(match (&from, to) {
+
+        let from_decayed: DecayedType = from.into();
+        let to_decayed: DecayedType = to.into();
+        let llvm_ty = to_decayed.to_llvm_type(self.context);
+        use TypeKind::*;
+        Ok(match (from.kind, to.kind) {
             (Int(from), Int(to)) => {
                 let value = value.into_int_value();
-                let ty = ty.into_int_type();
-                match (from.bits < to.bits, to.sign) {
+                let ty = llvm_ty.into_int_type();
+                match (from.bits() < to.bits(), to.signed()) {
                     (true, true) => self.builder.build_int_s_extend(value, ty, "sext")?,
                     (true, false) => self.builder.build_int_z_extend(value, ty, "zext")?,
                     (false, _) => self.builder.build_int_truncate(value, ty, "trunc")?,
@@ -258,8 +264,8 @@ where
             }
             (Int(from), Float(_)) => {
                 let value = value.into_int_value();
-                let ty = ty.into_float_type();
-                if from.sign {
+                let ty = llvm_ty.into_float_type();
+                if from.signed() {
                     self.builder
                         .build_signed_int_to_float(value, ty, "sitofp")?
                 } else {
@@ -269,7 +275,7 @@ where
                 .into()
             }
             (Int(_), Bool) => {
-                let from = from.to_llvm_type(self.context).into_int_type();
+                let from = from_decayed.to_llvm_type(self.context).into_int_type();
                 let value = value.into_int_value();
                 let zero = from.const_int(0, false);
                 self.builder
@@ -278,8 +284,8 @@ where
             }
             (Float(_), Int(to)) => {
                 let value = value.into_float_value();
-                let ty = ty.into_int_type();
-                if to.sign {
+                let ty = llvm_ty.into_int_type();
+                if to.signed() {
                     self.builder
                         .build_float_to_signed_int(value, ty, "fptosi")?
                 } else {
@@ -290,8 +296,8 @@ where
             }
             (Float(from), Float(to)) => {
                 let value = value.into_float_value();
-                let ty = ty.into_float_type();
-                if *from < to {
+                let ty = llvm_ty.into_float_type();
+                if from < to {
                     self.builder.build_float_ext(value, ty, "fext")?
                 } else {
                     self.builder.build_float_trunc(value, ty, "ftruc")?
@@ -299,6 +305,7 @@ where
                 .into()
             }
             (Float(_), Bool) => {
+                let from: DecayedType = from.into();
                 let from = from.to_llvm_type(self.context).into_float_type();
                 let value = value.into_float_value();
                 let zero = from.const_float(0.0);
@@ -308,19 +315,17 @@ where
             }
             (Bool, Int(_)) => {
                 let value = value.into_int_value();
-                let ty = ty.into_int_type();
+                let ty = llvm_ty.into_int_type();
                 self.builder.build_int_z_extend(value, ty, "zext")?.into()
             }
             (Bool, Float(_)) => {
                 let value = value.into_int_value();
-                let ty = ty.into_float_type();
+                let ty = llvm_ty.into_float_type();
                 self.builder
                     .build_unsigned_int_to_float(value, ty, "uitofp")?
                     .into()
             }
             (Bool, Bool) => value,
-            (Ptr(_), _) => todo!(),
-            (_, Ptr(_)) => todo!(),
         })
     }
 
@@ -341,20 +346,24 @@ where
                 .build_bitwise_binop(bitwise_op, l.into_int_value(), r.into_int_value())?
                 .into(),
             BinaryOperator::Arithmetic(arithmetic_op) => {
-                let sign = matches!(ty, Type::Int(IntTy { sign: true, .. }));
+                let sign = if let TypeKind::Int(int_ty) = ty.kind {
+                    int_ty.signed()
+                } else {
+                    false
+                };
                 self.build_arithmetic_binop(arithmetic_op, l, r, sign)?
             }
-            BinaryOperator::Comparaison(op) => match ty {
-                Type::Int(ty) => {
-                    self.build_int_cmp_binop(op, l.into_int_value(), r.into_int_value(), ty.sign)?
-                }
-                Type::Float(_) => {
+            BinaryOperator::Comparaison(op) => match DecayedType::from(ty) {
+                DecayedType::Int(ty) => self.build_int_cmp_binop(
+                    op,
+                    l.into_int_value(),
+                    r.into_int_value(),
+                    ty.signed(),
+                )?,
+                DecayedType::Float(_) => {
                     self.build_float_cmp_binop(op, l.into_float_value(), r.into_float_value())?
                 }
-                Type::Bool => {
-                    self.build_int_cmp_binop(op, l.into_int_value(), r.into_int_value(), false)?
-                }
-                Type::Ptr(_) => todo!(),
+                DecayedType::Ptr => panic!("comparation op on ptr"),
             },
         })
     }

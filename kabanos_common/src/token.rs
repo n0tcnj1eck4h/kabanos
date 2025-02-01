@@ -29,6 +29,7 @@ impl std::fmt::Display for Token {
     }
 }
 
+// TODO: impl take
 impl Default for Token {
     fn default() -> Self {
         Self::Atom(' ')

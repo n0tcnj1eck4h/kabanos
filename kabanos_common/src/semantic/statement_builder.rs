@@ -7,13 +7,13 @@ use super::{
     error::SemanticError,
     expression::{Expression, LValue},
     symbol::{SymbolTable, Variable, VariableID},
-    types::Type,
+    types::{Type, TypeKind},
     FunctionCall, Scope, Statement,
 };
 
-pub struct Analyzer<'a, 'b> {
+pub struct Analyzer<'a> {
     pub symbol_table: &'a mut SymbolTable,
-    pub expected_return_ty: Option<&'b Type>,
+    pub expected_return_ty: Option<Type>,
     pub stack: &'a mut Vec<VariableID>,
 }
 
@@ -22,7 +22,7 @@ pub enum ControlFlow {
     Fallthrough,
 }
 
-impl Analyzer<'_, '_> {
+impl Analyzer<'_> {
     pub fn build_statements<I>(
         &mut self,
         stmt_iter: I,
@@ -37,7 +37,7 @@ impl Analyzer<'_, '_> {
         while let Some(statement) = iter.next() {
             match statement {
                 ast::Statement::Conditional(expr, true_block, else_block) => {
-                    let expr = self.build_expression(expr, Some(&Type::Bool))?;
+                    let expr = self.build_expression(expr, Some(TypeKind::Bool.into()))?;
 
                     let (true_block, true_flow) = self.build_statements(*true_block)?;
                     flow = ControlFlow::Fallthrough;
@@ -75,7 +75,7 @@ impl Analyzer<'_, '_> {
                                 .iter()
                                 .zip(args.iter())
                                 .map(|(param, expr)| {
-                                    self.build_expression(expr.clone(), Some(&param.ty))
+                                    self.build_expression(expr.clone(), Some(param.ty))
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;
 
@@ -92,11 +92,11 @@ impl Analyzer<'_, '_> {
                     flow = ControlFlow::Fallthrough;
                 }
                 ast::Statement::Loop(expr, s) => {
-                    let expr = self.build_expression(expr, Some(&Type::Bool))?;
+                    let expr = self.build_expression(expr, Some(TypeKind::Bool.into()))?;
                     let (s, clfow) = self.build_statements(*s)?;
                     flow = clfow;
                     if let ControlFlow::Return = flow {
-                        println!("Why would you make a loop that runs one");
+                        println!("Why would you make a loop that runs once");
                     }
                     statements.push(Statement::Loop(expr, s));
                 }
@@ -116,7 +116,7 @@ impl Analyzer<'_, '_> {
                         }
                         _ => {
                             return Err(SemanticError::ReturnTypeMismatch {
-                                expected: self.expected_return_ty.cloned(),
+                                expected: self.expected_return_ty,
                             }
                             .with_span(Span::default()));
                         }
@@ -134,31 +134,26 @@ impl Analyzer<'_, '_> {
                     };
 
                     let identifier = identifier.unwrap();
-                    let (expr, variable_id) = match (expr, explicit_ty) {
+                    let (expr, ty) = match (expr, explicit_ty) {
+                        (None, Some(ty)) => (None, ty),
+                        (Some(expr), Some(ty)) => {
+                            let expr = self.build_expression(expr, Some(ty))?;
+                            (Some(expr), ty)
+                        }
+                        (Some(expr), None) => {
+                            let expr = self.build_expression(expr, None)?;
+                            let ty = self.symbol_table.get_expression_type(&expr);
+                            (Some(expr), ty)
+                        }
                         (None, None) => {
                             return Err(
                                 SemanticError::LocalVarMissingType.with_span(Span::default())
                             );
                         }
-                        (None, Some(ty)) => {
-                            let variable = Variable { identifier, ty };
-                            let variable_id = self.symbol_table.add_variable(variable);
-                            (None, variable_id)
-                        }
-                        (Some(expr), Some(ty)) => {
-                            let expr = self.build_expression(expr, Some(&ty))?;
-                            let variable = Variable { identifier, ty };
-                            let variable_id = self.symbol_table.add_variable(variable);
-                            (Some(expr), variable_id)
-                        }
-                        (Some(expr), None) => {
-                            let expr = self.build_expression(expr, None)?;
-                            let ty = self.symbol_table.get_expression_type(&expr);
-                            let variable = Variable { identifier, ty };
-                            let variable_id = self.symbol_table.add_variable(variable);
-                            (Some(expr), variable_id)
-                        }
                     };
+
+                    let variable = Variable { identifier, ty };
+                    let variable_id = self.symbol_table.add_variable(variable);
 
                     let mut body = Vec::new();
                     if let Some(expr) = expr {

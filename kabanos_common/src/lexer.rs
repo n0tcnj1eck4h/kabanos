@@ -1,4 +1,4 @@
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, mem, str::FromStr};
 
 use crate::{
     span::{Span, Spanned, WithSpan},
@@ -26,6 +26,7 @@ pub struct Lexer<T> {
     stream: T,
     span: Span,
     ch: Option<char>,
+    buf: String,
 }
 
 impl<T> Lexer<T>
@@ -35,7 +36,12 @@ where
     pub fn new(mut stream: T) -> Self {
         let ch = stream.next();
         let span = Span::default();
-        Lexer { stream, ch, span }
+        Lexer {
+            stream,
+            ch,
+            span,
+            buf: String::new(),
+        }
     }
 
     fn token(&mut self, kind: Token) -> Option<Result<Spanned<Token>, Spanned<LexerError>>> {
@@ -105,24 +111,27 @@ where
         }
 
         if ch.is_alphabetic() || ch == '_' {
-            let mut buf = String::new();
+            self.buf.clear();
             while let Some(ch) = self.ch {
                 if ch.is_alphanumeric() || ch == '_' {
-                    buf.push(ch);
+                    self.buf.push(ch);
                     self.advance();
                 } else {
                     break;
                 }
             }
 
-            if let Ok(keyword) = Keyword::from_str(&buf) {
+            if let Ok(keyword) = Keyword::from_str(&self.buf) {
                 return self.token(Token::Keyword(keyword));
             }
 
-            return match buf.as_str() {
+            return match self.buf.as_str() {
                 "false" => self.token(Token::BooleanLiteral(false)),
                 "true" => self.token(Token::BooleanLiteral(true)),
-                _ => self.token(Token::Identifier(buf)),
+                _ => {
+                    let identifier = mem::take(&mut self.buf);
+                    self.token(Token::Identifier(identifier))
+                }
             };
         }
 
@@ -156,15 +165,16 @@ where
 
         if ch == '"' {
             self.advance();
-            let mut buf = String::new();
+            self.buf.clear();
             while self.ch != Some('"') {
                 match self.read_char() {
-                    Ok(ch) => buf.push(ch),
+                    Ok(ch) => self.buf.push(ch),
                     Err(err) => return Some(Err(err)),
                 };
             }
             self.advance();
-            return self.token(Token::StringLiteral(buf));
+            let literal = mem::take(&mut self.buf);
+            return self.token(Token::StringLiteral(literal));
         }
 
         if ch == '\'' {

@@ -13,17 +13,33 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum IntSizes {
-    I8 = 8,
-    I16 = 16,
-    I32 = 32,
-    I64 = 64,
+pub enum IntTy {
+    I8,
+    U8,
+    I16,
+    U16,
+    I32,
+    U32,
+    I64,
+    U64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IntTy {
-    pub bits: IntSizes,
-    pub sign: bool,
+impl IntTy {
+    pub fn bits(&self) -> u32 {
+        match self {
+            IntTy::I8 | IntTy::U8 => 8,
+            IntTy::I16 | IntTy::U16 => 16,
+            IntTy::I32 | IntTy::U32 => 32,
+            IntTy::I64 | IntTy::U64 => 64,
+        }
+    }
+
+    pub fn signed(&self) -> bool {
+        match self {
+            IntTy::I8 | IntTy::I16 | IntTy::I32 | IntTy::I64 => true,
+            IntTy::U8 | IntTy::U16 | IntTy::U32 | IntTy::U64 => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -32,40 +48,67 @@ pub enum FloatTy {
     F64 = 64,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub enum Type {
-    Ptr(Box<Type>),
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct Type {
+    pub ptr_depth: u16,
+    pub kind: TypeKind,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum TypeKind {
     Int(IntTy),
     Float(FloatTy),
     Bool,
 }
 
+impl From<IntTy> for TypeKind {
+    fn from(value: IntTy) -> Self {
+        Self::Int(value)
+    }
+}
+
+impl From<FloatTy> for TypeKind {
+    fn from(value: FloatTy) -> Self {
+        Self::Float(value)
+    }
+}
+
+impl Type {
+    pub fn is_ptr(&self) -> bool {
+        return self.ptr_depth > 0;
+    }
+}
+
+impl<T: Into<TypeKind>> From<T> for Type {
+    fn from(value: T) -> Self {
+        let kind: TypeKind = value.into();
+        Self { kind, ptr_depth: 0 }
+    }
+}
+
 impl TryFrom<ast::Type> for Type {
     type Error = SemanticError;
 
-    #[rustfmt::skip]
     fn try_from(ast_ty: ast::Type) -> Result<Self, Self::Error> {
-        use IntSizes::*;
-        let mut ty = match ast_ty.name.as_str() {
-            "bool" => Type::Bool,                                  
-            "f32"  => Type::Float(FloatTy::F32),                  
-            "f64"  => Type::Float(FloatTy::F64),                  
-            "i8"   => Type::Int(IntTy { bits: I8,  sign: true,  }),     
-            "u8"   => Type::Int(IntTy { bits: I8,  sign: false, }),     
-            "i16"  => Type::Int(IntTy { bits: I16, sign: true,  }),     
-            "u16"  => Type::Int(IntTy { bits: I16, sign: false, }),     
-            "i32"  => Type::Int(IntTy { bits: I32, sign: true,  }),     
-            "u32"  => Type::Int(IntTy { bits: I32, sign: false, }),     
-            "i64"  => Type::Int(IntTy { bits: I64, sign: true,  }),     
-            "u64"  => Type::Int(IntTy { bits: I64, sign: false, }),     
+        let kind = match ast_ty.name.as_str() {
+            "bool" => TypeKind::Bool,
+            "f32" => TypeKind::Float(FloatTy::F32),
+            "f64" => TypeKind::Float(FloatTy::F64),
+            "i8" => TypeKind::Int(IntTy::I8),
+            "u8" => TypeKind::Int(IntTy::U8),
+            "i16" => TypeKind::Int(IntTy::I16),
+            "u16" => TypeKind::Int(IntTy::U16),
+            "i32" => TypeKind::Int(IntTy::I32),
+            "u32" => TypeKind::Int(IntTy::U32),
+            "i64" => TypeKind::Int(IntTy::I64),
+            "u64" => TypeKind::Int(IntTy::U64),
             _ => return Err(SemanticError::NotPrimitive(ast_ty.name)),
         };
 
-        for _ in 0..ast_ty.pointers {
-            ty = Type::Ptr(Box::new(ty));
-        }
-
-        Ok(ty)
+        Ok(Type {
+            kind,
+            ptr_depth: ast_ty.pointers,
+        })
     }
 }
 
@@ -83,48 +126,22 @@ impl TryFrom<Spanned<ast::Type>> for Type {
 
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use IntSizes::*;
-        use Type::*;
-        let s = match self {
+        use TypeKind::*;
+        for _ in 0..self.ptr_depth {
+            write!(f, "*")?;
+        }
+        let s = match self.kind {
             Bool => "bool",
             Float(FloatTy::F32) => "f32",
             Float(FloatTy::F64) => "f64",
-            Int(IntTy {
-                bits: I8,
-                sign: true,
-            }) => "i8",
-            Int(IntTy {
-                bits: I8,
-                sign: false,
-            }) => "u8",
-            Int(IntTy {
-                bits: I16,
-                sign: true,
-            }) => "i16",
-            Int(IntTy {
-                bits: I16,
-                sign: false,
-            }) => "u16",
-            Int(IntTy {
-                bits: I32,
-                sign: true,
-            }) => "i32",
-            Int(IntTy {
-                bits: I32,
-                sign: false,
-            }) => "u32",
-            Int(IntTy {
-                bits: I64,
-                sign: true,
-            }) => "i64",
-            Int(IntTy {
-                bits: I64,
-                sign: false,
-            }) => "u64",
-            Ptr(ty) => {
-                write!(f, "*")?;
-                return Display::fmt(ty, f);
-            }
+            Int(IntTy::I8) => "i8",
+            Int(IntTy::U8) => "u8",
+            Int(IntTy::I16) => "i16",
+            Int(IntTy::U16) => "u16",
+            Int(IntTy::I32) => "i32",
+            Int(IntTy::U32) => "u32",
+            Int(IntTy::I64) => "i64",
+            Int(IntTy::U64) => "u64",
         };
         write!(f, "{}", s)
     }
@@ -140,17 +157,27 @@ impl SymbolTable {
     pub fn get_expression_type(&self, expr: &Expression) -> Type {
         match expr {
             Expression::Cast(_, ty) => ty.clone(),
-            Expression::BooleanLiteral(_) => Type::Bool,
-            Expression::IntegerLiteral(_, int_ty) => Type::Int(*int_ty),
-            Expression::FloatLiteral(_, float_ty) => Type::Float(*float_ty),
+            Expression::BooleanLiteral(_) => Type {
+                kind: TypeKind::Bool,
+                ptr_depth: 0,
+            },
+            Expression::IntegerLiteral(_, int_ty) => Type {
+                kind: TypeKind::Int(*int_ty),
+                ptr_depth: 0,
+            },
+            Expression::FloatLiteral(_, float_ty) => Type {
+                kind: TypeKind::Float(*float_ty),
+                ptr_depth: 0,
+            },
             Expression::UnaryOperation(UnaryOperator::Deref, expr) => {
-                let Type::Ptr(ty) = self.get_expression_type(expr) else {
-                    panic!("This should never happen");
-                };
-                *ty
+                let mut ty = self.get_expression_type(expr);
+                ty.ptr_depth -= 1;
+                ty
             }
             Expression::UnaryOperation(UnaryOperator::Ref, expr) => {
-                Type::Ptr(Box::new(self.get_expression_type(expr)))
+                let mut ty = self.get_expression_type(expr);
+                ty.ptr_depth += 1;
+                ty
             }
             Expression::UnaryOperation(_, expr) => self.get_expression_type(expr),
             Expression::FunctionCall(call) => {
@@ -164,15 +191,18 @@ impl SymbolTable {
                 }
             },
             Expression::BinaryOperation(expr, op, _) => match op {
-                BinaryOperator::Comparaison(_) | BinaryOperator::Logic(_) => Type::Bool,
+                BinaryOperator::Comparaison(_) | BinaryOperator::Logic(_) => Type {
+                    kind: TypeKind::Bool,
+                    ptr_depth: 0,
+                },
                 BinaryOperator::Bitwise(_) | BinaryOperator::Arithmetic(_) => {
                     self.get_expression_type(expr)
                 }
             },
-            Expression::StringLiteral(_) => Type::Ptr(Box::new(Type::Int(IntTy {
-                bits: IntSizes::I8,
-                sign: false,
-            }))),
+            Expression::StringLiteral(_) => Type {
+                kind: TypeKind::Int(IntTy::I8),
+                ptr_depth: 1,
+            },
         }
     }
 }

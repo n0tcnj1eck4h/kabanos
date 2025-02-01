@@ -9,13 +9,13 @@ use inkwell::{
 
 use crate::semantic::{self, symbol::VariableID};
 
-use super::{error::CodegenResult, statement::Codegen};
+use super::{error::CodegenResult, statement::Codegen, types::DecayedType};
 
-pub struct ModuleCodegen {
+pub struct CodegenContext {
     pub context: Context,
 }
 
-impl Default for ModuleCodegen {
+impl Default for CodegenContext {
     fn default() -> Self {
         Self {
             context: Context::create(),
@@ -23,7 +23,7 @@ impl Default for ModuleCodegen {
     }
 }
 
-impl ModuleCodegen {
+impl CodegenContext {
     pub fn build_module<'ctx>(
         &'ctx self,
         semantic_module: semantic::Module,
@@ -83,12 +83,14 @@ impl ModuleCodegen {
     ) -> FunctionValue<'ctx> {
         let mut params = Vec::new();
         for param in &fn_decl.params {
-            params.push(param.ty.to_llvm_type(&self.context).into());
+            let ty: DecayedType = param.ty.into();
+            params.push(ty.to_llvm_type(&self.context).into());
         }
 
-        let fn_type = match &fn_decl.ty {
+        let fn_type = match fn_decl.ty {
             Some(t) => {
-                let return_type = t.to_llvm_type(&self.context);
+                let ty: DecayedType = t.into();
+                let return_type = ty.to_llvm_type(&self.context);
                 return_type.fn_type(&params, false)
             }
             None => self.context.void_type().fn_type(&params, false),

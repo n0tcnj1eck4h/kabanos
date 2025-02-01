@@ -7,7 +7,7 @@ use inkwell::targets::{
 };
 use inkwell::OptimizationLevel;
 use kabanos_common::ast::parser::Parser;
-use kabanos_common::codegen::module::ModuleCodegen;
+use kabanos_common::codegen::module::CodegenContext;
 use kabanos_common::lexer::Lexer;
 use kabanos_common::semantic::Module;
 use kabanos_common::span::HasSpan;
@@ -47,7 +47,7 @@ fn main() {
         .expect("Failed to write semantic.txt");
 
     println!("{}", "Emitting LLVM...".green());
-    let codegen = ModuleCodegen::default();
+    let codegen = CodegenContext::default();
     let llvm_module = match codegen.build_module(semantic_module, "main") {
         Ok(llvm_module) => llvm_module,
         Err(err) => return println!("Codegen error: {}", err),

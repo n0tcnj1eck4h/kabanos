@@ -23,6 +23,7 @@ pub enum SemanticError {
     StringLiteral,
     MissingReturn,
     LocalVarMissingType,
+    PointerArithmetic,
 }
 
 impl Display for SemanticError {
@@ -64,6 +65,7 @@ impl Display for SemanticError {
                 f,
                 "Local variable is missing an explicit type or initialization"
             ),
+            SemanticError::PointerArithmetic => write!(f, "Pointer arithmetic not yet supported"),
         }
     }
 }

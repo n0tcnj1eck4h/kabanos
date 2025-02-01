@@ -107,5 +107,5 @@ pub struct Composite {
 #[derive(Debug, Clone)]
 pub struct Type {
     pub name: String,
-    pub pointers: u32,
+    pub pointers: u16,
 }

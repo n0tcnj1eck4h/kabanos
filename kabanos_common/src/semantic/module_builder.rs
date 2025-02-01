@@ -72,7 +72,7 @@ impl Module {
 
         let mut analyzer = Analyzer {
             symbol_table: &mut self.symbol_table,
-            expected_return_ty: declaration.ty.as_ref(),
+            expected_return_ty: declaration.ty,
             stack: &mut stack,
         };
 
