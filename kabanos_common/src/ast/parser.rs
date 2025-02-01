@@ -153,7 +153,7 @@ where
         loop {
             let mut span = self.token.get_span();
 
-            if let Token::Identifier(_) | Token::Operator(Operator::Asterisk) = *self.token {
+            if let Token::Identifier(_) | Token::Operator(Operator::Ampersand) = *self.token {
                 let ty = self.ty()?;
                 span = span.join(self.token.get_span());
                 if let Token::Identifier(ref mut name) = *self.token {

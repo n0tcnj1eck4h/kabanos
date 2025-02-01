@@ -163,6 +163,11 @@ where
                 Ok(call_site.try_as_basic_value().unwrap_left())
             }
             Expression::Cast(expr, to) => self.build_cast(expr, to),
+            Expression::StringLiteral(s) => Ok(self
+                .builder
+                .build_global_string_ptr(&s, "str_ptr")?
+                .as_pointer_value()
+                .into()),
         }
     }
 

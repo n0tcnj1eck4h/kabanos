@@ -169,6 +169,10 @@ impl SymbolTable {
                     self.get_expression_type(expr)
                 }
             },
+            Expression::StringLiteral(_) => Type::Ptr(Box::new(Type::Int(IntTy {
+                bits: IntSizes::I8,
+                sign: false,
+            }))),
         }
     }
 }

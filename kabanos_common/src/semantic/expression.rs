@@ -17,6 +17,7 @@ pub enum Expression {
     BooleanLiteral(bool),
     IntegerLiteral(u64, IntTy),
     FloatLiteral(f64, FloatTy),
+    StringLiteral(String),
     FunctionCall(FunctionCall),
     Assignment(LValue, Box<Expression>),
     UnaryOperation(UnaryOperator, Box<Expression>),

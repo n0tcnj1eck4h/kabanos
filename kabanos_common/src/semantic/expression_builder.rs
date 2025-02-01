@@ -44,9 +44,7 @@ impl Analyzer<'_, '_> {
                 self.build_unary_op(op, *expr, expected_ty)
             }
             ast::Expression::FunctionCall(name, args) => self.build_function_call(name, args),
-            ast::Expression::StringLiteral(_) => {
-                return Err(SemanticError::StringLiteral);
-            }
+            ast::Expression::StringLiteral(s) => Ok(Expression::StringLiteral(s)),
             ast::Expression::Cast(expr, ty) => self.build_cast(*expr, ty),
         }?;
 
