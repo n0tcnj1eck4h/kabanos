@@ -10,7 +10,7 @@ use inkwell::{
 use crate::semantic::{
     self,
     expression::{Expression, LValue},
-    operator::{ArithmeticOp, BinaryOperator, BitwiseOp, ComparaisonOp, LogicOp},
+    operator::{ArithmeticOp, BinaryOperator, BitwiseOp, ComparaisonOp, LogicOp, UnaryOperator},
     symbol::{FunctionID, SymbolTable, VariableID},
     types::{IntTy, Type},
     FunctionCall, Scope,
@@ -157,17 +157,65 @@ where
                 .const_float(f)
                 .into()),
             Expression::BinaryOperation(lexpr, op, rexpr) => self.build_binop(lexpr, op, rexpr),
-            Expression::UnaryOperation(_op, _expr) => {
-                // TODO
-                //Ok(expr.build_expression(context, builder, symbol_table)?)
-                todo!()
-            }
+            Expression::UnaryOperation(op, expr) => self.build_unary_op(op, expr),
             Expression::FunctionCall(call) => {
                 let call_site = self.build_function_call(call)?;
                 Ok(call_site.try_as_basic_value().unwrap_left())
             }
             Expression::Cast(expr, to) => self.build_cast(expr, to),
         }
+    }
+
+    fn build_unary_op(
+        &self,
+        op: UnaryOperator,
+        expr: Box<Expression>,
+    ) -> Result<BasicValueEnum<'_>, super::error::IRBuilerError> {
+        let rhs_ty = self.symbol_table.get_expression_type(expr.as_ref());
+        Ok(match op {
+            UnaryOperator::Negative => {
+                let expr = self.build_expression(*expr)?;
+                match rhs_ty {
+                    Type::Int(_) => self
+                        .builder
+                        .build_int_neg(expr.into_int_value(), "int_neg")?
+                        .into(),
+                    Type::Float(_) => self
+                        .builder
+                        .build_float_neg(expr.into_float_value(), "fp_neg")?
+                        .into(),
+                    _ => {
+                        unreachable!()
+                    }
+                }
+            }
+            UnaryOperator::BitNot | UnaryOperator::LogicNot => {
+                let expr = self.build_expression(*expr)?;
+                self.builder.build_not(expr.into_int_value(), "not")?.into()
+            }
+            UnaryOperator::Ref => match *expr {
+                Expression::LValue(LValue::LocalVar(var_id)) => self.variables[&var_id].into(),
+                expr => {
+                    let expr = self.build_expression(expr)?;
+                    let alloc = self.builder.build_alloca(expr.get_type(), "tempalloc")?;
+                    self.builder.build_store(alloc, expr)?;
+                    alloc.into()
+                }
+            },
+            UnaryOperator::Deref => {
+                let Type::Ptr(ty) = self.symbol_table.get_expression_type(expr.as_ref()) else {
+                    panic!("Can't generate code for dereferencing non pointer types!");
+                };
+                let expr = self.build_expression(*expr)?;
+                self.builder
+                    .build_load(
+                        ty.to_llvm_type(&self.context),
+                        expr.into_pointer_value(),
+                        "deref",
+                    )?
+                    .into()
+            }
+        })
     }
 
     fn build_lvalue_expr(
