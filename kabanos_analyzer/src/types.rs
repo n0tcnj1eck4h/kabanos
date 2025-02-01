@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use crate::{
+use kabanos_common::{
     ast,
     span::{HasSpan, Spanned, WithSpan},
 };

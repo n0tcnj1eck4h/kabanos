@@ -1,6 +1,6 @@
 use inkwell::{AddressSpace, context::Context, types::BasicTypeEnum};
 
-use kabanos_common::semantic::types::{FloatTy, IntTy, Type, TypeKind};
+use kabanos_analyzer::types::{FloatTy, IntTy, Type, TypeKind};
 
 pub enum DecayedType {
     Float(FloatTy),

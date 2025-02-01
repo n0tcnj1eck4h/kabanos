@@ -1,16 +1,16 @@
-use crate::{
+use kabanos_common::{
     ast,
     span::{HasSpan, Spanned, WithSpan as _},
     token::Operator,
 };
 
 use super::{
+    FunctionCall,
     error::SemanticError,
     expression::{Expression, LValue},
     operator::{BinaryOperator, UnaryOperator},
     statement_builder::Analyzer,
     types::{FloatTy, IntTy, Type, TypeKind},
-    FunctionCall,
 };
 
 impl Analyzer<'_> {
@@ -86,7 +86,7 @@ impl Analyzer<'_> {
                 return Err(SemanticError::TypeMismatch {
                     expected: ty.clone(),
                     found: TypeKind::Float(FloatTy::F32).into(),
-                })
+                });
             }
         };
 
@@ -181,7 +181,7 @@ impl Analyzer<'_> {
                 return Err(SemanticError::TypeMismatch {
                     expected: ty.clone(),
                     found: default_int_type.into(),
-                })
+                });
             }
         };
 

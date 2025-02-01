@@ -1,15 +1,15 @@
-use crate::{
+use kabanos_common::{
     ast,
     span::{HasSpan, Span, Spanned, WithSpan},
     token::Operator,
 };
 
 use super::{
+    FunctionCall, Scope, Statement,
     error::SemanticError,
     expression::{Expression, LValue},
     symbol::{SymbolTable, Variable, VariableID},
     types::{Type, TypeKind},
-    FunctionCall, Scope, Statement,
 };
 
 pub struct Analyzer<'a> {
