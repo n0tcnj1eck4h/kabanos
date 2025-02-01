@@ -195,21 +195,6 @@ impl Analyzer<'_> {
         right: Spanned<ast::Expression>,
         prefered_type: Option<Type>,
     ) -> Result<Expression, SemanticError> {
-        if op == Operator::Assign {
-            let left = self.build_inner_expression(left.unwrap(), None)?;
-            let Expression::LValue(LValue::LocalVar(variable_id)) = left else {
-                return Err(SemanticError::LValue(left));
-            };
-
-            let var = self.symbol_table.get_variable(variable_id);
-            let right = self.build_inner_expression(right.unwrap(), Some(var.ty))?;
-
-            return Ok(Expression::Assignment(
-                LValue::LocalVar(variable_id),
-                Box::new(right),
-            ));
-        }
-
         let binop: BinaryOperator = op.try_into()?;
         let prefered_type = if let Some(ty) = prefered_type {
             if ty.is_ptr() {

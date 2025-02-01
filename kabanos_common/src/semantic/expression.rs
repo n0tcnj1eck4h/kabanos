@@ -19,7 +19,6 @@ pub enum Expression {
     FloatLiteral(f64, FloatTy),
     StringLiteral(String),
     FunctionCall(FunctionCall),
-    Assignment(LValue, Box<Expression>),
     UnaryOperation(UnaryOperator, Box<Expression>),
     BinaryOperation(Box<Expression>, BinaryOperator, Box<Expression>),
     Cast(Box<Expression>, Type),

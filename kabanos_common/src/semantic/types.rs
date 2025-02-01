@@ -184,7 +184,7 @@ impl SymbolTable {
                 let fn_decl = self.get_function(call.id);
                 fn_decl.ty.clone().expect("This should never happen")
             }
-            Expression::Assignment(lvalue, _) | Expression::LValue(lvalue) => match lvalue {
+            Expression::LValue(lvalue) => match lvalue {
                 LValue::LocalVar(var_id) => {
                     let var = self.get_variable(*var_id);
                     var.ty.clone()

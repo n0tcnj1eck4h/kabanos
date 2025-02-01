@@ -48,6 +48,9 @@ where
                 self.build_function_call(call)?;
                 Ok(())
             }
+            Statement::Assignment(LValue::LocalVar(variable_id), expr) => {
+                self.build_assign_expr(variable_id, expr)
+            }
         }
     }
 
@@ -138,9 +141,6 @@ where
 
     pub fn build_expression(&self, expr: Expression) -> CodegenResult<BasicValueEnum<'_>> {
         match expr {
-            Expression::Assignment(LValue::LocalVar(variable_id), expr) => {
-                self.build_assign_expr(variable_id, expr)
-            }
             Expression::LValue(LValue::LocalVar(variable_id)) => {
                 self.build_lvalue_expr(variable_id)
             }
@@ -372,13 +372,11 @@ where
         &self,
         variable_id: VariableID,
         expr: Box<Expression>,
-    ) -> Result<BasicValueEnum<'_>, super::error::IRBuilerError> {
+    ) -> CodegenResult<()> {
         let r = self.build_expression(*expr)?;
         let ptr = self.variables.get(&variable_id).expect("oops");
-        let symbol = self.symbol_table.get_variable(variable_id);
-        let ty = ptr.get_type();
         self.builder.build_store(*ptr, r)?;
-        Ok(self.builder.build_load(ty, *ptr, &symbol.identifier)?)
+        Ok(())
     }
 
     pub fn build_function_call(&'a self, call: FunctionCall) -> CodegenResult<CallSiteValue<'ctx>> {

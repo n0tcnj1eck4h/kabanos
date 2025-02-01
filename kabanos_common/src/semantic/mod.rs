@@ -7,7 +7,7 @@ pub mod statement_builder;
 pub mod symbol;
 pub mod types;
 
-use expression::Expression;
+use expression::{Expression, LValue};
 use symbol::{FunctionID, SymbolTable, VariableID};
 use types::Type;
 
@@ -50,6 +50,7 @@ pub struct FunctionCall {
 #[derive(Debug)]
 pub enum Statement {
     Conditional(Expression, Vec<Statement>, Option<Vec<Statement>>),
+    Assignment(LValue, Box<Expression>),
     VoidFunctionCall(FunctionCall),
     Loop(Expression, Vec<Statement>),
     Return(Option<Expression>),

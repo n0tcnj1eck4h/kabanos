@@ -1,6 +1,7 @@
 use crate::{
     ast,
     span::{HasSpan, Span, Spanned, WithSpan},
+    token::Operator,
 };
 
 use super::{
@@ -86,10 +87,27 @@ impl Analyzer<'_> {
                         }
                     }
 
-                    statements.push(Statement::Expression(
-                        self.build_expression(expr.with_span(span), None)?,
-                    ));
-                    flow = ControlFlow::Fallthrough;
+                    if let ast::Expression::BinaryOp(left, Operator::Assign, right) = expr {
+                        let left_span = left.get_span();
+                        let left = self.build_expression(*left, None)?;
+                        let Expression::LValue(LValue::LocalVar(variable_id)) = left else {
+                            return Err(SemanticError::LValue(left).with_span(left_span));
+                        };
+
+                        let var = self.symbol_table.get_variable(variable_id);
+                        let right = self.build_expression(*right, Some(var.ty))?;
+
+                        statements.push(Statement::Assignment(
+                            LValue::LocalVar(variable_id),
+                            Box::new(right),
+                        ));
+                        continue;
+                    } else {
+                        statements.push(Statement::Expression(
+                            self.build_expression(expr.with_span(span), None)?,
+                        ));
+                        flow = ControlFlow::Fallthrough;
+                    }
                 }
                 ast::Statement::Loop(expr, s) => {
                     let expr = self.build_expression(expr, Some(TypeKind::Bool.into()))?;
@@ -157,9 +175,10 @@ impl Analyzer<'_> {
 
                     let mut body = Vec::new();
                     if let Some(expr) = expr {
-                        let kind =
-                            Expression::Assignment(LValue::LocalVar(variable_id), Box::new(expr));
-                        body.push(Statement::Expression(kind));
+                        body.push(Statement::Assignment(
+                            LValue::LocalVar(variable_id),
+                            Box::new(expr),
+                        ));
                     }
 
                     self.stack.push(variable_id);
