@@ -441,6 +441,7 @@ version = "0.1.0"
 dependencies = [
  "colored",
  "inkwell",
+ "kabanos_analyzer",
  "kabanos_codegen",
  "kabanos_common",
 ]
@@ -449,6 +450,7 @@ dependencies = [
 name = "kabanos_lsp"
 version = "0.1.0"
 dependencies = [
+ "kabanos_analyzer",
  "kabanos_common",
  "serde_json",
  "thiserror 2.0.3",

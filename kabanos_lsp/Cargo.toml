@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 kabanos_common = { path = "../kabanos_common"}
+kabanos_analyzer = { path = "../kabanos_analyzer"}
 serde_json = "1.0.133"
 thiserror = "2.0.3"
 tokio = { version = "1.42.0", features = ["full"]}

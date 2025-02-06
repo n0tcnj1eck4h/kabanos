@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{error::SemanticError, types::Type, FunctionDeclaration, FunctionDefinition};
+use super::{FunctionDeclaration, FunctionDefinition, error::SemanticError, types::Type};
 
 #[derive(Debug)]
 pub struct Variable {
@@ -46,7 +46,7 @@ impl SymbolTable {
         }))
     }
 
-    pub fn iterate_functions(&self) -> impl Iterator<Item = FunctionID> {
+    pub fn iterate_functions(&self) -> impl Iterator<Item = FunctionID> + 'static {
         (0..self.fn_decls.len()).map(FunctionID)
     }
 
