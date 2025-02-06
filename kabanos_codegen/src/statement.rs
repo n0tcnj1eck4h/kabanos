@@ -7,7 +7,7 @@ use inkwell::{
     values::{BasicValueEnum, CallSiteValue, FloatValue, FunctionValue, IntValue, PointerValue},
 };
 
-use kabanos_common::semantic::{
+use kabanos_analyzer::{
     self as semantic, FunctionCall, Scope,
     expression::{Expression, LValue},
     operator::{ArithmeticOp, BinaryOperator, BitwiseOp, ComparaisonOp, LogicOp, UnaryOperator},

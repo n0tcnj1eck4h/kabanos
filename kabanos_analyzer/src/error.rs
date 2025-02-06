@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::token::Operator;
+use kabanos_common::token::Operator;
 
 use super::{expression::Expression, operator::UnaryOperator, types::Type};
 

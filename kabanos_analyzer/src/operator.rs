@@ -1,4 +1,4 @@
-use crate::token::Operator;
+use kabanos_common::token::Operator;
 
 use super::error::SemanticError;
 

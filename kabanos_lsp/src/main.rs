@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
+use kabanos_analyzer::Module;
 use kabanos_common::ast::parser::Parser;
 use kabanos_common::lexer::Lexer;
-use kabanos_common::semantic::Module;
 use kabanos_common::span::{HasSpan, Span};
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;

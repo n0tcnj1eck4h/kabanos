@@ -1,15 +1,15 @@
-use crate::{
+use kabanos_common::{
     ast,
     span::{HasSpan, Span, Spanned, WithSpan},
     token::Operator,
 };
 
 use super::{
+    FunctionCall, Scope, Statement,
     error::SemanticError,
     expression::{Expression, LValue},
     symbol::{SymbolTable, Variable, VariableID},
     types::{Type, TypeKind},
-    FunctionCall, Scope, Statement,
 };
 
 pub struct Analyzer<'a> {
@@ -40,11 +40,11 @@ impl Analyzer<'_> {
                 ast::Statement::Conditional(expr, true_block, else_block) => {
                     let expr = self.build_expression(expr, Some(TypeKind::Bool.into()))?;
 
-                    let (true_block, true_flow) = self.build_statements(*true_block)?;
+                    let (true_block, true_flow) = self.build_statements([*true_block])?;
                     flow = ControlFlow::Fallthrough;
 
                     if let Some(else_block) = else_block {
-                        let (else_block, else_flow) = self.build_statements(*else_block)?;
+                        let (else_block, else_flow) = self.build_statements([*else_block])?;
                         if let (ControlFlow::Return, ControlFlow::Return) = (else_flow, true_flow) {
                             flow = ControlFlow::Return;
                         }
@@ -111,7 +111,7 @@ impl Analyzer<'_> {
                 }
                 ast::Statement::Loop(expr, s) => {
                     let expr = self.build_expression(expr, Some(TypeKind::Bool.into()))?;
-                    let (s, clfow) = self.build_statements(*s)?;
+                    let (s, clfow) = self.build_statements([*s])?;
                     flow = clfow;
                     if let ControlFlow::Return = flow {
                         println!("Why would you make a loop that runs once");
@@ -200,31 +200,5 @@ impl Analyzer<'_> {
         }
 
         Ok((statements, flow))
-    }
-}
-
-pub enum StatementIter {
-    Single(Option<ast::Statement>),
-    Block(std::vec::IntoIter<ast::Statement>),
-}
-
-impl Iterator for StatementIter {
-    type Item = ast::Statement;
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            StatementIter::Single(statement) => statement.take(),
-            StatementIter::Block(iter) => iter.next(),
-        }
-    }
-}
-
-impl IntoIterator for ast::Statement {
-    type Item = ast::Statement;
-    type IntoIter = StatementIter;
-    fn into_iter(self) -> Self::IntoIter {
-        match self {
-            Self::Block(block) => StatementIter::Block(block.into_iter()),
-            _ => StatementIter::Single(Some(self)),
-        }
     }
 }

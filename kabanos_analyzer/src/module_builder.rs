@@ -1,11 +1,11 @@
 use super::{
+    FunctionDeclaration, FunctionDefinition, FunctionParam, Module,
     error::SemanticError,
     statement_builder::{Analyzer, ControlFlow},
     symbol::Variable,
     types::Type,
-    FunctionDeclaration, FunctionDefinition, FunctionParam, Module,
 };
-use crate::{
+use kabanos_common::{
     ast,
     span::{Spanned, WithSpan as _},
 };
