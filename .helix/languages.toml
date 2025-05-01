@@ -1,0 +1,12 @@
+[[language]]
+name = "kabanos"
+scope = "source.kbs"
+# injection-regex = "mylang"
+file-types = ["kbs"]
+comment-tokens = "#"
+indent = { tab-width = 2, unit = "  " }
+# formatter = { command = "mylang-formatter" , args = ["--stdin"] }
+language-servers = [ "kabanos_lsp" ]
+
+[language-server.kabanos_lsp]
+command = "./target/debug/kabanos_lsp"
